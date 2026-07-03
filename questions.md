@@ -1,0 +1,1 @@
+Est-ce qu'il existe une entrée de mariage par chaque couple ? 
