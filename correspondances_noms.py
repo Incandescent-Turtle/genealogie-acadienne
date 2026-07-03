@@ -1,12 +1,12 @@
 """
-Correspondances par les NOMS — version simple.
+Trouver les noms partagés entre plusieurs arbres.
 """
 
 import unicodedata
 
 from db import run_query, t
 
-# Arbres à exclure de toutes les recherches (par leur nom dans la base).
+# Arbres à exclure de toutes les recherches
 ARBRES_IGNORES = ["FAMILLES.ACADIENNES"]
 
 def ids_arbres_ignores(conn=None, noms=ARBRES_IGNORES):
@@ -78,13 +78,6 @@ def trouver_noms_partages(df, min_personnes=2, min_arbres=2):
     colonnes = ["tree_id", "person_id", "nom_complet", "nom_norm",
                 "n_personnes", "n_arbres", "groupe_id"]
     return partages[colonnes].reset_index(drop=True)
-
-
-def exporter_noms_partages(partages, fichier="temp/noms_partages.csv"):
-    """Écrit le résultat de `trouver_noms_partages` dans un fichier CSV."""
-    partages.to_csv(fichier, index=False, encoding="utf-8")
-    print(f"{partages['groupe_id'].nunique()} noms partagés, "
-          f"{len(partages)} personnes -> {fichier}")
 
 def exporter_resume(partages, fichier="temp/partages_resume.csv"):
     """Écrit un résumé : une ligne par nom partagé (groupe)."""

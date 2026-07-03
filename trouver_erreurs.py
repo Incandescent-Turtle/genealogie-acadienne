@@ -8,10 +8,14 @@ Les valeurs qui n'ont pas de sens, par exemple :
   - un âge de décès absurde (plus de 120 ans)
   - des chiffres ajoutés au NOM d'une personne
 
+# TODO / À FAIRE :
   - une personne qui est née avant ses enfants, ou qqch de similaire (regarder la ascendance/descendance)
+  - baptême avant naissance ou décès
   - etc.
 
 Ce script NE MODIFIE PAS la base de données. Il ne fait que lire.
+
+Ce script n'est pas fini (03/07/2026).
 """
 
 import datetime
@@ -152,9 +156,9 @@ def noms_avec_chiffres(conn):
     return df[COLONNES]
 
 
-# TODO / À FAIRE : Créer une fonction pour vérifier si une personne est née avant ses enfants
+# TODO / À FAIRE : Créer une fonction pour vérifier si une personne est née après ses enfants
 # TODO / À FAIRE : Créer une fonction pour vérifier si une personne est née avant ses parents
-# TODO / À FAIRE : Créer une fonction pour créer les liens pour aller sur le page web de la personne
+# TODO / À FAIRE : Créer une fonction pour créer les liens de web pour aller sur le page web de la personne
 
 def main():
     conn = get_connection()

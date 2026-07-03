@@ -1,8 +1,4 @@
 .venv
-*.csv
-*.xlsx
-rapport_structure.md
-correspondances_groupes.txt
 __pycache__/
 .env
 .vscode

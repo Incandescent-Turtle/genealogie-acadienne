@@ -24,3 +24,21 @@ Abbie Thibault : AMIRAULT et THIBAULT
 http://webtrees.test/index.php?route=%2Ftree%2FTHIBAULT%2Findividual%2FI0271%2FAbbie-Agnes-Thibault#tab-tree
 http://webtrees.test/index.php?route=%2Ftree%2FAMIRAULT%2Findividual%2FI3476%2FAbbie-Thibault#tab-tree
 
+abraham mius d entremont de pleinmarais
+
+## Âge de ___
+Âge au premier mariage
+sex	moyenne	médiane
+F 24.2 22.0
+M 27.5 26.0
+
+Âge à la naissance du premier enfant
+sexe	nombre	moyenne	médiane
+F 25.1 24.0
+M 28.5 28.0
+
+Event	Records	Mean age	Median age
+Baptism (BAPM) 34,132 0.2 yr (~2–3 months) 0.0 yr
+Christening (CHR) 4 23.5 yr 7.9 yr
+Both combined 34,136 0.2 yr 0.0 yr
+ça veut dire que les CHR ne sont pas vraiment utilisés dans cette base. Et que les BAPM se passent à la naissance.
