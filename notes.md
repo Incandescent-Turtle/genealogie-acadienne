@@ -6,14 +6,30 @@
 
 ## Faits
 Il existe 15.000 noms dans la base qui sont partagés. Ça veut dire qu'il y a 15.000 noms qui ont plus d'une personne avec ce nom.
-Il en existe 316 avec le nom Marie LeBlanc, répartis sur 42 arbres.
-
-
-## Augmenter la Performance
-L'utilisation de '+' dans Pandas pour combiner les nom de tables au lieu de .agg()
+par exemple, il en existe 316 avec le nom Marie LeBlanc, répartis sur 42 arbres.
 
 ## * Securité
 L'injection SQL avec les parameters ( si on prend un limite d'âge ou qqch, il faut assurer qu'il ne puisse pas être injecté )
+
+## Les deuxièmes prénoms
+Souvant, les filles avec le prénom "Marie" étaient appelées par leur deuxième prénom.
+Donc, dans les archives, on manque les prénoms comme "Marie" parfois.
+Ce serait bien de regarder tous les prénoms. Par exemple:
+
+Si on avait deux personnes:
+
+`Marie Louise LeBlanc` et `Louise Geneviève LeBlanc`
+
+On voudrait comparer "Marie LeBlanc" et "Louise LeBlanc" (de M. L. LeBlanc) contre "Louise LeBlanc" and "Geneviève LeBlanc" pour identifier les personnes qui ont peut-être le même nom. Ici on trouverait que les deux peuvent être "Louise LeBlanc". Parce qu'elles partagent un nom, c'est possible qu'elles sont la même personne.
+
+C'est plus clair avec cet exemple-ci:
+
+Marie Alma Comeaux 
+Alma Comeaux 
+
+Ici on veux comparer "Marie Comeaux" et "Alma Comeaux" (de M. A. Comeaux) contre "Alma Comeaux", et on trouverait qu'elles sont toutes les deux "Alma Comeaux". 
+
+## Quand les actes de mariage sont manquants
 
 ## Personnes qui sont les mêmes je pense :
 Zacharie Agapit d'ENTREMONT : D'ENTREMONT et DUON
@@ -26,19 +42,5 @@ http://webtrees.test/index.php?route=%2Ftree%2FAMIRAULT%2Findividual%2FI3476%2FA
 
 abraham mius d entremont de pleinmarais
 
-## Âge de ___
-Âge au premier mariage
-sex	moyenne	médiane
-F 24.2 22.0
-M 27.5 26.0
-
-Âge à la naissance du premier enfant
-sexe	nombre	moyenne	médiane
-F 25.1 24.0
-M 28.5 28.0
-
-Event	Records	Mean age	Median age
-Baptism (BAPM) 34,132 0.2 yr (~2–3 months) 0.0 yr
-Christening (CHR) 4 23.5 yr 7.9 yr
-Both combined 34,136 0.2 yr 0.0 yr
-ça veut dire que les CHR ne sont pas vraiment utilisés dans cette base. Et que les BAPM se passent à la naissance.
+## statistiques.md
+Regarde ce fichier pour voir les statistiques de personnes, par exemple la moyenne âge de naissance.
