@@ -6,15 +6,18 @@ import unicodedata
 
 from db import run_query, t
 
-# Arbres à exclure de toutes les recherches
-ARBRES_IGNORES = ["FAMILLES.ACADIENNES"]
+# Arbres à exclure de toutes les recherches. La casse est ignorée.
+ARBRES_IGNORES = ["FAMILLES.ACADIENNES", "BABIN_TEST", "MY_PROJECT"]
 
 def ids_arbres_ignores(conn=None, noms=ARBRES_IGNORES):
     """Renvoie les `gedcom_id` des arbres à ignorer, d'après leur nom."""
     if not noms:
         return []
     g = run_query("SELECT gedcom_id, gedcom_name FROM " + t("gedcom"), conn=conn)
-    return g.loc[g["gedcom_name"].isin(noms), "gedcom_id"].tolist()
+    # comparaison insensible à la casse : la base peut stocker « babin_test »
+    noms_norm = {n.casefold() for n in noms}
+    masque = g["gedcom_name"].str.casefold().isin(noms_norm)
+    return g.loc[masque, "gedcom_id"].tolist()
 
 
 def normaliser(texte):

@@ -8,6 +8,12 @@ import os
 import pandas as pd
 import pymysql
 from dotenv import load_dotenv
+import warnings
+
+warnings.filterwarnings(
+    "ignore", 
+    message=".*pandas only supports SQLAlchemy connectable.*"
+)
 
 load_dotenv(override=True)
 TABLE_PREFIX = os.getenv("DB_PREFIX", "wt_")

@@ -29,6 +29,8 @@ Alma Comeaux
 
 Ici on veux comparer "Marie Comeaux" et "Alma Comeaux" (de M. A. Comeaux) contre "Alma Comeaux", et on trouverait qu'elles sont toutes les deux "Alma Comeaux". 
 
+Pour faire ça, on peut simplement examiner toutes les personnes qui ont un nom en commun avec cette personne (toutes les Marie LeBlanc, toutes les Alma LeBlanc)
+
 ## Quand les actes de mariage sont manquants
 
 ## Personnes qui sont les mêmes je pense :
