@@ -3,7 +3,7 @@ Comparer DEUX personnes pour décider si c'est la même.
 
 Après que `correspondances_noms.py` a trouvé des gens qui portent le même nom,
 On les compare ici en utilisant les métriques suivantes : 
-naissance, baptême, décès, sépulture, mariage, ascendants, descendants, conjoints, et période de vie.
+naissance, baptême, décès, sépulture, mariage (nom du conjoint + année), ascendants, descendants, et période de vie.
 
 Principe (modulaire) :
   1. on charge chaque personne UNE fois -> objet `Personne` (faits + proches) ;
@@ -302,61 +302,70 @@ def comparer_sepulture(a, b, proche=3):
 
 # TODO / À FAIRE : Pour comparer les conjoints, on devrait utiliser RapidFuzz ou une comparaison phonétique.
 def comparer_mariage(a, b, proche=2):
-    """Compare les mariages en regardant l'ANNÉE et le NOM DU CONJOINT.
+    """Compare les mariages en regardant le NOM DU CONJOINT et l'ANNÉE.
 
-    Chacun peut avoir plusieurs mariages. On retient la meilleure paire en
-    privilégiant d'abord les paires où le conjoint concorde, puis le plus petit écart d'années. 
-    Ainsi :
-      - même conjoint + même année  -> "identique"
-      - même conjoint, année absente/éloignée -> "meme_conjoint"
-      - même année mais conjoints DIFFÉRENTS -> "autre_conjoint" (ne prouve pas que c'est la même personne)
-      - conjoints inconnus -> on retombe sur la comparaison d'année seule.
+    Chacun peut avoir plusieurs mariages. Un mariage peut avoir un conjoint INCONNU (nom absent dans le GEDCOM).
+
+    Verdicts :
+      - "identique"     -> au moins un mariage exact (même conjoint + même année)
+      - "proche"        -> mariage compatible avec une année identique/proche
+      - "meme_conjoint" -> conjoint commun mais année absente/éloignée
+      - "autre_conjoint"-> conjoints connus des deux côtés, aucun en commun
+      - "inconnu"       -> pas de mariage
     """
-    aa, bb = a.mariages, b.mariages
-    if not aa or not bb:
-        return {"metrique": "mariage", "a": None, "b": None, "ecart": None,
-                "conjoint_a": None, "conjoint_b": None,
-                "meme_conjoint": False, "verdict": "inconnu"}
+    mariages_a, mariages_b = a.mariages, b.mariages
+    noms_a = {m["conjoint_norm"] for m in mariages_a if m["conjoint_norm"]}
+    noms_b = {m["conjoint_norm"] for m in mariages_b if m["conjoint_norm"]}
+    # Conjoints communs entre les deux personnes (sans prendre en compte les conjoints inconnus)
+    conjoints_communs = noms_a & noms_b
 
-    candidats = []
-    for ma in aa:
-        for mb in bb:
-            ya, yb = ma["annee"], mb["annee"]
-            ecart = abs(ya - yb) if (ya and yb) else None
-            na, nb = ma["conjoint_norm"], mb["conjoint_norm"]
-            meme_conjoint = bool(na and nb and na == nb)
-            # tri : conjoint concordant d'abord, puis plus petit écart d'année
-            cle = (0 if meme_conjoint else 1,
-                   ecart if ecart is not None else 9999)
-            candidats.append((cle, ecart, meme_conjoint, ma, mb))
+    def compatibles(mariage_a, mariage_b):
+        """Deux mariages peuvent être la même union. Conjoints connus qui concordent, ou au moins un conjoint inconnu."""
+        nom_a, nom_b = mariage_a["conjoint_norm"], mariage_b["conjoint_norm"]
+        if nom_a and nom_b:
+            # Si les conjoints sont connus et sont les mêmes
+            return nom_a == nom_b
+        # Si un des conjoints est inconnu
+        return True
 
-    # On trie les candidats par order de priorité qu'on explique (en utilisant le clé)
-    _, ecart, meme_conjoint, ma, mb = min(candidats, key=lambda c: c[0])
+    n_exacts = n_proches = 0
+    for mariage_a in mariages_a:
+        annee_a, nom_a = mariage_a["annee"], mariage_a["conjoint_norm"]
+        if not annee_a:
+            continue
+        exact_nom = False
+        meilleur_ecart = None
+        for mariage_b in mariages_b:
+            if not mariage_b["annee"] or not compatibles(mariage_a, mariage_b):
+                continue
+            ecart = abs(annee_a - mariage_b["annee"])
+            meilleur_ecart = ecart if meilleur_ecart is None else min(meilleur_ecart, ecart)
+            if ecart == 0 and nom_a and mariage_b["conjoint_norm"] == nom_a:
+                exact_nom = True
+        if exact_nom:
+            n_exacts += 1
+        elif meilleur_ecart is not None and meilleur_ecart <= proche:
+            n_proches += 1
 
-    # TODO / À FAIRE : Essayer de trouver UN conjoint qui y est commun -- ne pas regarder simplement les premiers conjoints triés.
-    if meme_conjoint:
-        if ecart == 0:
-            verdict = "identique"
-        elif ecart is not None and ecart <= proche:
-            verdict = "proche"
-        else:
-            verdict = "meme_conjoint"
-    elif ma["conjoint_norm"] and mb["conjoint_norm"]:
-        # les deux conjoints sont connus mais différents
-        verdict = ("autre_conjoint" if (ecart is not None and ecart <= proche) else "different")
-    elif ecart is None:
-        verdict = "inconnu"          # conjoints inconnus, années absentes
-    elif ecart == 0:
-        verdict = "identique"        # conjoints inconnus : on juge sur l'année
-    elif ecart <= proche:
+    if not mariages_a or not mariages_b:
+        verdict = "inconnu"
+    elif n_exacts:
+        verdict = "identique"
+    elif n_proches:
         verdict = "proche"
+    elif conjoints_communs:
+        verdict = "meme_conjoint"
+    elif noms_a and noms_b:
+        verdict = "autre_conjoint"
     else:
-        verdict = "different"
+        verdict = "inconnu"
 
     return {"metrique": "mariage",
-            "a": ma["annee"], "b": mb["annee"], "ecart": ecart,
-            "conjoint_a": ma["conjoint"], "conjoint_b": mb["conjoint"],
-            "meme_conjoint": meme_conjoint, "verdict": verdict}
+            "n_a": len(mariages_a), "n_b": len(mariages_b),
+            "noms_communs": sorted(conjoints_communs),
+            "n_noms_communs": len(conjoints_communs),
+            "n_exacts": n_exacts, "n_proches": n_proches,
+            "verdict": verdict}
 
 
 def comparer_periode_estimee(a, b, marge=MARGE_PERIODE):
@@ -406,11 +415,6 @@ def comparer_descendants(a, b):
     return r
 
 
-def comparer_conjoints(a, b):
-    r = _comparer_noms(a.conjoints, b.conjoints)
-    r["metrique"] = "conjoints"
-    return r
-
 METRIQUES = (
     comparer_naissance,
     comparer_bapteme,
@@ -420,7 +424,6 @@ METRIQUES = (
     comparer_periode_estimee,
     comparer_ascendants,
     comparer_descendants,
-    comparer_conjoints,
 )
 
 
@@ -462,10 +465,12 @@ def _detail_comparaison(nom, r):
         ecart = "chevauchement" if r["ecart"] == 0 else _ecart_txt(r["ecart"])
         return (f"A={_intervalle_txt(r['a'])} ({r['methode_a']}) "
                 f"B={_intervalle_txt(r['b'])} ({r['methode_b']}) {ecart}")
-    if nom == "mariage":  # année + conjoint
-        ca, cb = r["conjoint_a"] or "?", r["conjoint_b"] or "?"
-        return f"A={r['a']} (conj. {ca}) B={r['b']} (conj. {cb}) {_ecart_txt(r['ecart'])}"
-    return f"A={r['a']} B={r['b']} {_ecart_txt(r['ecart'])}"  # année simple
+    if nom == "mariage":  # conjoints partagés + mariages exacts
+        noms = f" : {', '.join(r['noms_communs'])}" if r["noms_communs"] else ""
+        return (f"{r['n_noms_communs']} conjoint(s) commun(s){noms}, "
+                f"{r['n_exacts']} exact(s), {r['n_proches']} proche(s) "
+                f"(A={r['n_a']}, B={r['n_b']})")
+    return f"A={r['a']} B={r['b']} {_ecart_txt(r['ecart'])}"
 
 
 def afficher_comparaison(a, b, rapport):
