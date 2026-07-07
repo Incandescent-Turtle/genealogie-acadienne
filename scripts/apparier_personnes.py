@@ -148,21 +148,23 @@ def _ordonner(pa, pb):
     return (pa, pb) if cle_a <= cle_b else (pb, pa)
 
 
-def construire_paires(partages, limite=None):
-    """Toutes les paires de personnes à comparer (même nom, arbres différents).
-    On ignore les paires du même arbre
-    On respecte l'ordre canonique, et la limite."""
-    paires = []
-    for _, groupe in partages.groupby("groupe_id"):
-        gens = list(groupe.itertuples(index=False))
-        # toutes les paires possibles entre les personnes du groupe
-        for pa, pb in combinations(gens, 2):
-            if pa.tree_id == pb.tree_id:
-                continue  # même arbre : on saute
-            paires.append(_ordonner(pa, pb))
-            if limite is not None and len(paires) >= limite:
-                return paires
-    return paires
+def paires_du_groupe(groupe):
+    """Paires à comparer à l'intérieur d'un groupe (personnes du même nom).
+    On ignore les paires du même arbre et on respecte l'ordre canonique."""
+    gens = list(groupe.itertuples(index=False))
+    for pa, pb in combinations(gens, 2):
+        if pa.tree_id != pb.tree_id:  # même arbre : on saute
+            yield _ordonner(pa, pb)
+
+
+def compter_paires(groupe):
+    """Nombre de paires (arbres différents) d'un groupe, sans les construire.
+    Sert à afficher l'avancement sans charger personne."""
+    par_arbre = groupe["tree_id"].value_counts()
+    n = int(par_arbre.sum())
+    total = n * (n - 1) // 2
+    memes = sum(int(c) * (int(c) - 1) // 2 for c in par_arbre)  # paires même arbre
+    return total - memes
 
 
 def charger_personne_cache(conn, cache, tree_id, person_id):
@@ -184,13 +186,41 @@ def enregistrer_lot(conn, sql_insert, lot):
     return n
 
 
-def apparier(conn, limite=None, min_criteres=1, criteres_signal=4, taille_lot=500):
-    """Importer les nomes partagés et les apparier selon nos métriques.
+def comparer_groupe(conn, groupe, min_criteres=1):
+    """Compare deux à deux les personnes d'un groupe (même nom).
+
+    Les personnes du groupe sont téléchargées une seule fois dans un cache
+    local.
+
+    Renvoie `lignes` : les tuples prêts pour l'INSERT (paires ayant au moins
+    `min_criteres` critères concordants).
+    """
+    cache = {}  # local au groupe : chaque personne chargée une seule fois
+    lignes = []
+    for pa, pb in paires_du_groupe(groupe):
+        try:
+            a = charger_personne_cache(conn, cache, pa.tree_id, pa.person_id)
+            b = charger_personne_cache(conn, cache, pb.tree_id, pb.person_id)
+        except ValueError:
+            continue  # personne introuvable : on saute
+
+        rapport = comparer(a, b)
+        concordants = criteres_concordants(rapport)
+        if len(concordants) >= min_criteres:
+            lignes.append(rapport_en_ligne(pa, pb, rapport, concordants))
+    return lignes
+
+
+def apparier(conn, min_criteres=1, taille_lot=500):
+    """Importer les noms partagés et les apparier selon nos métriques.
+
+    On traite un nom à la fois : charger les personnes, comparer, enregistrer,
+    puis oublier avant de passer au nom suivant.
 
     On n'enregistre que les paires ayant au moins `min_criteres` critères
-    concordants
+    concordants.
 
-    Renvoie le couple `(enregistres, trouves)`.
+    Renvoie le nombre de comparaisons enregistrées.
     """
     creer_table(conn)
     sql_insert = _sql_insert()
@@ -199,51 +229,39 @@ def apparier(conn, limite=None, min_criteres=1, criteres_signal=4, taille_lot=50
     df = charger_personnes(conn)
     print(f"{len(df)} personnes chargées.")
     partages = trouver_noms_partages(df)
-    print(f"{partages['groupe_id'].nunique()} noms partagés.")
-
-    # préparer les paires à comparer
-    paires = construire_paires(partages, limite)
-    total = len(paires)
-    print(f"{total} comparaisons à faire (enregistrées dans `{TABLE_COMPARAISONS}`).\n")
+    groupes = partages.groupby("groupe_id")
+    total = sum(compter_paires(g) for _, g in groupes)
+    print(f"{groupes.ngroups} noms partagés, {total} comparaisons à faire "
+          f"(enregistrées dans `{TABLE_COMPARAISONS}`).\n")
     if total == 0:
-        return 0, 0
+        return 0
 
-    # Comparer et enregistrer chaque comparaison, par lots
-    cache = {}  # on ne charge chaque personne qu'une seule fois
-    seuil = max(1, total // 100)  # pour afficher l'avancement tous les ~1 %
     lot = []
-    enregistres = trouves = 0
+    faites = enregistres = 0
+    dernier_pct = -1
 
-    for i, (pa, pb) in enumerate(paires, 1):
-        try:
-            a = charger_personne_cache(conn, cache, pa.tree_id, pa.person_id)
-            b = charger_personne_cache(conn, cache, pb.tree_id, pb.person_id)
-        except ValueError:
-            continue
-
-        rapport = comparer(a, b)
-        concordants = criteres_concordants(rapport)
-        if len(concordants) >= min_criteres:
-            lot.append(rapport_en_ligne(pa, pb, rapport, concordants))
+    for _, groupe in groupes:
+        lot.extend(comparer_groupe(conn, groupe, min_criteres))
+        faites += compter_paires(groupe)
 
         if len(lot) >= taille_lot:
             enregistres += enregistrer_lot(conn, sql_insert, lot)
 
-        # avancement tous les ~1 %
-        if i % seuil == 0 or i == total:
-            pct = round(100 * i / total)
-            print(f"... {pct}% ({i}/{total}), "
-                  f"{enregistres + len(lot)} enregistrées, "
-                  f"{trouves} avec >= {criteres_signal} critères")
+        # avancement à chaque fois que le pourcentage change
+        pct = round(100 * faites / total)
+        if pct != dernier_pct or faites == total:
+            dernier_pct = pct
+            print(f"... {pct}% ({faites}/{total}), "
+                  f"{enregistres + len(lot)} enregistrées")
 
     enregistres += enregistrer_lot(conn, sql_insert, lot)
-    print(f"\nTerminé : {enregistres} comparaisons enregistrées dans `{TABLE_COMPARAISONS}` ({trouves} avec >= {criteres_signal} critères).")
-    return enregistres, trouves
+    print(f"\nTerminé : {enregistres} comparaisons enregistrées dans `{TABLE_COMPARAISONS}`.")
+    return enregistres
 
 def main():
     conn = get_connection()
     try:
-        apparier(conn,limite=None, min_criteres=1, criteres_signal=4, taille_lot=500)
+        apparier(conn, min_criteres=1, taille_lot=500)
     finally:
         conn.close()
 

@@ -9,6 +9,9 @@ On le fait bizzarement maintenant. On crée une date de naissance estimée, mais
 On devrait separer la logique -- comparer_personnes.py devrait formuler le rapport complet entre deux individus. 
 apparier_personnes.py devrait utiliser correspondances_noms.py pour obtenir tous les noms à examiner, puis utiliser comparer_personnes.py pour obtenir un rapport entre les deux. PUIS, mettre tout ça dans la base de données.
 
+## Charger par lots 
+Maintenant c'est plus lent -- pour chaque personne on charge les données reparti à 9 requêtes SQL. Donc pour 300 Marie LeBlanc, c'est 9*300 requêtes. Au lieu de 9 par lots. 
+
 ## Record Count
 `SELECT COUNT(*) AS total_humans FROM wt_individuals;`
 149553
