@@ -16,6 +16,7 @@ Si une date manque, on estime la période de vie à partir des proches (et des d
 
 Maintenant, quand on regard les parents ou les enfants, on regarde seulmente les nom and les dates de naissance.
 Une meilleure stratégie consisterait à examiner tous les faits concernant ces personnes, à l'exception des enfants et des parents (parce que ça serait un cercle).
+Je ne said pas si ^ ça c'est necessaire. Mais je pense qu'on devrait examiner les noms moins precise -- les deuxièmes prénoms, les homophones, etc.
 """
 
 from dataclasses import dataclass, field
@@ -300,7 +301,7 @@ def comparer_sepulture(a, b, proche=3):
     return r
 
 
-# TODO / À FAIRE : Pour comparer les conjoints, on devrait utiliser RapidFuzz ou une comparaison phonétique.
+# TODO / À FAIRE : Pour comparer les conjoints, on devrait utiliser RapidFuzz ou une comparaison phonétique, ou regarder les deuxièmes prénoms.
 def comparer_mariage(a, b, proche=2):
     """Compare les mariages en regardant le NOM DU CONJOINT et l'ANNÉE.
 

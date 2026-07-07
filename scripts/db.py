@@ -63,3 +63,26 @@ def run_query(sql, params=None, conn=None):
         if fermer:
             conn.close()
     return df
+
+
+def execute(sql, params=None, conn=None, many=False):
+    """Exécute une requête d'écriture (CREATE, INSERT, UPDATE...) et valide.
+
+    Si `many=True`, `params` est une liste de tuples et on utilise `executemany`.
+    Renvoie le nombre de lignes affectées.
+    """
+    fermer = False
+    if conn is None:
+        conn = get_connection()
+        fermer = True
+    try:
+        with conn.cursor() as cur:
+            if many:
+                n = cur.executemany(sql, params or [])
+            else:
+                n = cur.execute(sql, params)
+        conn.commit()
+        return n
+    finally:
+        if fermer:
+            conn.close()

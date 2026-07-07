@@ -1,3 +1,14 @@
+## Documentation
+On manque de bonne documentation.
+
+## Periode Estimée
+On construit une periode estimée de la vie d'une personne en utilisant ses dates de naissance et de décès et de mariage et les chose comme ça. 
+On le fait bizzarement maintenant. On crée une date de naissance estimée, mais pas un date de décès estimée. Mais quand on a une vrai date de naissance, on crée une date de décès estimée. Donc on devrait aussi le faire quand on estime la date de naissance (on ajour 40 ans ou qqch comme ça).
+
+## Separation des script d'apparier et de comparer
+On devrait separer la logique -- comparer_personnes.py devrait formuler le rapport complet entre deux individus. 
+apparier_personnes.py devrait utiliser correspondances_noms.py pour obtenir tous les noms à examiner, puis utiliser comparer_personnes.py pour obtenir un rapport entre les deux. PUIS, mettre tout ça dans la base de données.
+
 ## Record Count
 `SELECT COUNT(*) AS total_humans FROM wt_individuals;`
 149553
@@ -5,7 +16,7 @@
 149594
 
 ## Faits
-Il existe 15.000 noms dans la base qui sont partagés. Ça veut dire qu'il y a 15.000 noms qui ont plus d'une personne avec ce nom.
+Il existe 12.000 noms dans la base qui sont partagés. Ça veut dire qu'il y a 12.000 noms qui ont plus d'une personne avec ce nom.
 par exemple, il en existe 316 avec le nom Marie LeBlanc, répartis sur 42 arbres.
 
 ## * Securité
