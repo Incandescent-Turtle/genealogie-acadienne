@@ -157,7 +157,7 @@ def nombre_enfants(conn):
     """
     return run_query(sql, params=(LIEN_ENFANT, LIEN_CONJOINT), conn=conn)
 
-METRIQUES = [
+CRITERES = [
     {"nom": "Durée de vie",                         "fn": duree_vie,            "unite": "ans",     "min": 0,  "max": 120},
     {"nom": "Âge au 1er mariage",                   "fn": age_premier_mariage,  "unite": "ans",     "min": 12, "max": 100},
     {"nom": "Âge à la naissance du 1er enfant",     "fn": age_premier_enfant,   "unite": "ans",     "min": 12, "max": 80},
@@ -207,7 +207,7 @@ def main():
     conn = get_connection()
     try:
         sorties = []
-        for m in METRIQUES:
+        for m in CRITERES:
             print(f"Calcul : {m['nom']} ...")
             try:
                 df = m["fn"](conn)

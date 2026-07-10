@@ -44,7 +44,7 @@ Paire = tuple[Any, Any]
 # Une ligne prête pour l'INSERT (valeurs dans l'ordre de `COLONNES`).
 LigneComparaison = tuple[Any, ...]
 
-# Pour chaque métrique, les verdicts qui comptent comme une "concordance".
+# Pour chaque critère, les verdicts qui comptent comme une "concordance".
 # (voir comparer_personnes.py pour la liste des verdicts possibles)
 VERDICTS_POSITIFS = {
     "naissance": {"identique", "proche"},
@@ -52,7 +52,7 @@ VERDICTS_POSITIFS = {
     "deces": {"identique", "proche"},
     "sepulture": {"identique", "proche"},
     "mariage": {"identique", "proche", "meme_conjoint"},
-    # "periode_estimee": {"chevauchement", "proche"}, # ça aide à idenifier, mais c'est créé par rapport aux dates connues, qui sont déjà les autres métriques.
+    # "periode_estimee": {"chevauchement", "proche"}, # ça aide à idenifier, mais c'est créé par rapport aux dates connues, qui sont déjà les autres critères.
     "ascendants": {"communs"},
     "descendants": {"communs"},
 }
@@ -79,7 +79,7 @@ COLONNES = [
 CLES = ("tree_id_a", "person_id_a", "tree_id_b", "person_id_b")
 
 def criteres_concordants(rapport: RapportComplet) -> list[str]:
-    """Liste des métriques où les deux personnes concordent."""
+    """Liste des critères où les deux personnes concordent."""
     concordants = []
     for nom, r in rapport.items():
         if r["verdict"] in VERDICTS_POSITIFS.get(nom, set()):
@@ -233,7 +233,7 @@ def comparer_groupe(
 
 
 def apparier(conn: Connection, min_criteres: int = 1, taille_lot: int = 500) -> int:
-    """Importer les noms partagés et les apparier selon nos métriques.
+    """Importer les noms partagés et les apparier selon nos critères.
 
     On télécharge d'un coup toutes les personnes concernées (en lots). Ça pourrait être un probleme si on avait des millions de personnes dans la base.
 
