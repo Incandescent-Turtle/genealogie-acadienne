@@ -2,19 +2,43 @@
 Modèle `Personne` et chargement depuis la base de données.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, TypedDict
 
 import pandas as pd
 
 from correspondances_noms import normaliser
 from db import run_query, t
 
+if TYPE_CHECKING:
+    from pymysql.connections import Connection
+
 # Faits datés qui concernent une personne
 FAITS_PERSONNE = ("BIRT", "BAPM", "CHR", "DEAT", "BURI")
 
 # Nombre d'identifiants par requête `IN (...)`
 TAILLE_LOT_SQL = 500
+
+# --- Types des structures de données ---------------------------------------
+# Faits datés d'une personne : {"BIRT": 1700, "DEAT": 1750, ...} (année ou None).
+Faits = dict[str, "int | None"]
+
+
+class Mariage(TypedDict):
+    """Un mariage : année (ou None) et nom du conjoint (normalisé)."""
+    annee: int | None
+    conjoint: str | None
+    conjoint_norm: str | None
+
+
+class Proche(TypedDict):
+    """Un proche (parent, enfant, conjoint) réduit au nom + année de naissance."""
+    nom: str
+    nom_norm: str
+    naissance: int | None
+
 
 @dataclass
 class Personne:
@@ -23,23 +47,23 @@ class Personne:
     nom_complet: str
     nom_norm: str
     sexe: str
-    faits: dict     # {"BIRT": 1700, "DEAT": 1750, ...}
-    mariages: list = field(default_factory=list)   # [{annee, conjoint, conjoint_norm}, ...]
-    parents: list = field(default_factory=list)    # [{nom, nom_norm, naissance}]
-    enfants: list = field(default_factory=list)
-    conjoints: list = field(default_factory=list)
+    faits: Faits
+    mariages: list[Mariage] = field(default_factory=list)
+    parents: list[Proche] = field(default_factory=list)
+    enfants: list[Proche] = field(default_factory=list)
+    conjoints: list[Proche] = field(default_factory=list)
 
     def __str__(self):
         return (f"{self.nom_complet} (arbre {self.tree_id}, id {self.person_id})")
 
-def _annee(valeur):
+def _annee(valeur: Any) -> int | None:
     """Convertit une année SQL en int ou None."""
     if valeur is None or (isinstance(valeur, float) and pd.isna(valeur)):
         return None
     return int(valeur)
 
 
-def _nettoyer_xrefs(xrefs):
+def _nettoyer_xrefs(xrefs: Iterable[str]) -> list[str]:
     """Enlève les vides et les doublons en gardant l'ordre."""
     vus, propres = set(), []
     for x in xrefs:
@@ -48,17 +72,16 @@ def _nettoyer_xrefs(xrefs):
             propres.append(x)
     return propres
 
-
-def _morceaux(sequence, taille=TAILLE_LOT_SQL):
+def _morceaux(sequence: list[Any], taille: int = TAILLE_LOT_SQL) -> Iterator[list[Any]]:
     """Découpe une séquence en morceaux d'au plus `taille` éléments."""
     for i in range(0, len(sequence), taille):
         yield sequence[i:i + taille]
 
 
 def _lire_par_morceaux(
-    conn: Any,
-    sql_pour: Callable[[str, tuple], Tuple[str, tuple]], 
-    ids: Iterable[str]
+    conn: Connection,
+    sql_pour: Callable[[str, tuple], tuple[str, tuple]],
+    ids: Iterable[str],
 ) -> pd.DataFrame:
     """Exécute une requête `IN (...)` par morceau d'ids et concatène le tout.
 
@@ -73,7 +96,7 @@ def _lire_par_morceaux(
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def _grouper_premier(df, cle, valeur):
+def _grouper_premier(df: pd.DataFrame, cle: str, valeur: Callable[[Any], Any]) -> dict[Any, Any]:
     """{ligne[cle]: valeur(ligne)}, en gardant la première occurrence de `cle`.
     
     Exemple :
@@ -92,7 +115,7 @@ def _grouper_premier(df, cle, valeur):
     return resultat
 
 
-def _grouper_xrefs(df, cle, colonnes):
+def _grouper_xrefs(df: pd.DataFrame, cle: str, colonnes: tuple[str, ...]) -> dict[Any, list[str]]:
     """{ligne[cle]: [xrefs des `colonnes`...]}, dédoublonnés et nettoyés.
     
     Exemple :
@@ -109,7 +132,7 @@ def _grouper_xrefs(df, cle, colonnes):
     return {k: _nettoyer_xrefs(v) for k, v in resultat.items()}
 
 
-def _base_lot(conn, tree_id, xrefs):
+def _base_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, tuple[str, str]]:
     """Nom complet + sexe pour un lot. Renvoie {xref: (nom, sexe)}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -125,8 +148,8 @@ def _base_lot(conn, tree_id, xrefs):
     return _grouper_premier(df, "xref", lambda r: (r.nom, r.sexe))
 
 
-def _faits_lot(conn, tree_id, xrefs):
-    """Faits datés pour un lot. Renvoie {xref: {fait: annee}}."""
+def _faits_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, Faits]:
+    """Faits datés pour un lot. Renvoie {xref: Fait}."""
     marques_faits = ",".join(["%s"] * len(FAITS_PERSONNE))
 
     def sql_pour(marques, morceau):
@@ -143,7 +166,7 @@ def _faits_lot(conn, tree_id, xrefs):
     return resultat
 
 
-def _parents_lot(conn, tree_id, xrefs):
+def _parents_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
     """Xrefs des parents pour un lot. Renvoie {xref: [xref_parent, ...]}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -157,7 +180,7 @@ def _parents_lot(conn, tree_id, xrefs):
     return _grouper_xrefs(df, "xref", ("pere", "mere"))
 
 
-def _enfants_lot(conn, tree_id, xrefs):
+def _enfants_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
     """Xrefs des enfants pour un lot. Renvoie {xref: [xref_enfant, ...]}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -171,7 +194,7 @@ def _enfants_lot(conn, tree_id, xrefs):
     return _grouper_xrefs(df, "xref", ("enfant",))
 
 
-def _conjoints_lot(conn, tree_id, xrefs):
+def _conjoints_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
     """Xrefs des conjoints pour un lot. Renvoie {xref: [xref_conjoint, ...]}."""
     ens = {str(x) for x in xrefs}
 
@@ -191,7 +214,7 @@ def _conjoints_lot(conn, tree_id, xrefs):
     return {x: _nettoyer_xrefs(v) for x, v in resultat.items()}
 
 
-def _noms_lot(conn, tree_id, xrefs):
+def _noms_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, str]:
     """Nom complet pour un lot d'identifiants. Renvoie {xref: nom}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -203,7 +226,7 @@ def _noms_lot(conn, tree_id, xrefs):
     return _grouper_premier(df, "xref", lambda r: r.nom)
 
 
-def _naissances_lot(conn, tree_id, xrefs):
+def _naissances_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, Proche]:
     """Nom + année de naissance pour un lot (proches).
     Renvoie {xref: {nom, nom_norm, naissance}}."""
     def sql_pour(marques, morceau):
@@ -223,7 +246,7 @@ def _naissances_lot(conn, tree_id, xrefs):
     })
 
 
-def _annees_mariage_lot(conn, tree_id, fam_ids):
+def _annees_mariage_lot(conn: Connection, tree_id: int, fam_ids: Iterable[str]) -> dict[str, int | None]:
     """Année de mariage (MARR) pour un lot de familles. Renvoie {fam: annee}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -236,7 +259,7 @@ def _annees_mariage_lot(conn, tree_id, fam_ids):
     return _grouper_premier(df, "fam", lambda r: _annee(r.annee))
 
 
-def _mariages_lot(conn, tree_id, xrefs):
+def _mariages_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[Mariage]]:
     """Mariages (année + conjoint) pour un lot.
     Renvoie {xref: [{annee, conjoint, conjoint_norm}, ...]}."""
     def sql_pour(marques, morceau):
@@ -257,7 +280,7 @@ def _mariages_lot(conn, tree_id, xrefs):
     annees = _annees_mariage_lot(conn, tree_id, familles["fam"].dropna().unique().tolist())
     noms = _noms_lot(conn, tree_id, familles["conjoint_id"].dropna().unique().tolist())
 
-    resultat = {}
+    resultat: dict[str, list[Mariage]] = {}
     for r in familles.itertuples():
         conjoint = (noms.get(r.conjoint_id) or "").strip() or None
         resultat.setdefault(r.xref, []).append({
@@ -268,7 +291,7 @@ def _mariages_lot(conn, tree_id, xrefs):
     return resultat
 
 
-def _charger_arbre(conn, tree_id, xrefs):
+def _charger_arbre(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, Personne]:
     """Charge en lot toutes les personnes d'un même arbre. 
     Renvoie {xref: Personne}."""
     xrefs = _nettoyer_xrefs(xrefs)
@@ -307,24 +330,26 @@ def _charger_arbre(conn, tree_id, xrefs):
     }
 
 
-def charger_groupe(conn, gens):
+def charger_groupe(
+    conn: Connection, gens: Iterable[tuple[Any, Any]]
+) -> dict[tuple[int, str], Personne]:
     """Charge en lot toutes les personnes `gens` (itérable de `(tree_id, person_id)`).
 
     On regroupe par arbre et on ne fait que quelques requêtes par arbre. 
     
     Renvoie {(tree_id, person_id): Personne}."""
-    par_arbre = {}
+    par_arbre: dict[int, list[str]] = {}
     for tree_id, person_id in gens:
         par_arbre.setdefault(int(tree_id), []).append(str(person_id))
 
-    personnes = {}
+    personnes: dict[tuple[int, str], Personne] = {}
     for tree_id, xrefs in par_arbre.items():
         for xref, p in _charger_arbre(conn, tree_id, xrefs).items():
             personnes[(tree_id, xref)] = p
     return personnes
 
 
-def charger_personne(conn, tree_id, person_id):
+def charger_personne(conn: Connection, tree_id: int, person_id: str) -> Personne:
     """Charge une seule personne (raccourci sur `charger_groupe`)."""
     personnes = charger_groupe(conn, [(tree_id, person_id)])
     cle = (int(tree_id), str(person_id))

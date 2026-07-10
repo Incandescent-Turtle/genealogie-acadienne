@@ -2,14 +2,23 @@
 Trouver les noms partagés entre plusieurs arbres.
 """
 
+from __future__ import annotations
+
 import unicodedata
+from typing import TYPE_CHECKING
 
 from db import run_query, t
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from pymysql.connections import Connection
 
 # Arbres à exclure de toutes les recherches. La casse est ignorée.
 ARBRES_IGNORES = ["FAMILLES.ACADIENNES", "BABIN_TEST", "MY_PROJECT"]
 
-def ids_arbres_ignores(conn=None, noms=ARBRES_IGNORES):
+def ids_arbres_ignores(
+    conn: Connection | None = None, noms: list[str] = ARBRES_IGNORES
+) -> list[int]:
     """Renvoie les `gedcom_id` des arbres à ignorer, d'après leur nom."""
     if not noms:
         return []
@@ -20,7 +29,7 @@ def ids_arbres_ignores(conn=None, noms=ARBRES_IGNORES):
     return g.loc[masque, "gedcom_id"].tolist()
 
 
-def normaliser(texte):
+def normaliser(texte: str | None) -> str:
     """Minuscules, sans accents ni ponctuation, espaces compactés."""
     if texte is None:
         return ""
@@ -31,7 +40,7 @@ def normaliser(texte):
     return " ".join(texte.split())
 
 
-def charger_personnes(conn=None):
+def charger_personnes(conn: Connection | None = None) -> pd.DataFrame:
     """Charge toutes les personnes : arbre, identifiant, nom complet."""
     df = run_query(
         f"""
@@ -55,14 +64,16 @@ def charger_personnes(conn=None):
     df["nom_norm"] = df["nom_complet"].map(normaliser)
     return df
 
-def chercher_meme_nom(df, nom_complet, tree_id):
+def chercher_meme_nom(df: pd.DataFrame, nom_complet: str, tree_id: int) -> pd.DataFrame:
     """Renvoie les personnes de l'arbre `tree_id` au nom exactement identique."""
     cible = normaliser(nom_complet)
     sous = df[df["tree_id"] == tree_id]
     return sous[sous["nom_norm"] == cible]
 
 
-def trouver_noms_partages(df, min_personnes=2, min_arbres=2):
+def trouver_noms_partages(
+    df: pd.DataFrame, min_personnes: int = 2, min_arbres: int = 2
+) -> pd.DataFrame:
     """Renvoie toutes les personnes qui partagent leur nom avec d'autres. On regroupe par nom normalisé."""
     df = df[df["nom_norm"] != ""].copy()
     groupes = df.groupby("nom_norm")
@@ -82,7 +93,7 @@ def trouver_noms_partages(df, min_personnes=2, min_arbres=2):
                 "n_personnes", "n_arbres", "groupe_id"]
     return partages[colonnes].reset_index(drop=True)
 
-def exporter_resume(partages, fichier="temp/partages_resume.csv"):
+def exporter_resume(partages: pd.DataFrame, fichier: str = "temp/partages_resume.csv") -> None:
     """Écrit un résumé : une ligne par nom partagé (groupe)."""
     resume = (partages.groupby("groupe_id")
               .agg(nom_norm=("nom_norm", "first"),

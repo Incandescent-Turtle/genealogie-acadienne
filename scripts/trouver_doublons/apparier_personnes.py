@@ -11,12 +11,24 @@ Pour ces paires, on conserve toutes les données afin de :
 Comme il y a beaucoup de noms, on peut fixer une LIMITE de comparaisons.
 """
 
-from itertools import combinations
+from __future__ import annotations
 
-from comparer_personnes import comparer
+from itertools import combinations
+from typing import TYPE_CHECKING, Any, Iterator
+
+from comparer_personnes import RapportComplet, comparer
 from correspondances_noms import charger_personnes, trouver_noms_partages
 from db import execute, get_connection, t
-from personnes import charger_groupe
+from personnes import Personne, charger_groupe
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from pymysql.connections import Connection
+
+# Une paire de personnes à comparer, représentée par leurs lignes de DataFrame.
+Paire = tuple[Any, Any]
+# Une ligne prête pour l'INSERT (valeurs dans l'ordre de `COLONNES`).
+LigneComparaison = tuple[Any, ...]
 
 # Pour chaque métrique, les verdicts qui comptent comme une "concordance".
 # (voir comparer_personnes.py pour la liste des verdicts possibles)
@@ -52,7 +64,7 @@ COLONNES = [
 # Colonnes qui identifient la paire
 CLES = ("tree_id_a", "person_id_a", "tree_id_b", "person_id_b")
 
-def criteres_concordants(rapport):
+def criteres_concordants(rapport: RapportComplet) -> list[str]:
     """Liste des métriques où les deux personnes concordent."""
     concordants = []
     for nom, r in rapport.items():
@@ -61,7 +73,7 @@ def criteres_concordants(rapport):
     return concordants
 
 
-def creer_table(conn):
+def creer_table(conn: Connection) -> None:
     """Crée la table des comparaisons si elle n'existe pas encore.
 
     La clé unique sur la paire permet d'éviter les doublons
@@ -101,7 +113,7 @@ def creer_table(conn):
     execute(sql, conn=conn)
 
 
-def _sql_insert():
+def _sql_insert() -> str:
     """Construit l'INSERT ... ON DUPLICATE KEY UPDATE pour une comparaison"""
     cols = ", ".join(f"`{c}`" for c in COLONNES)
     marques = ", ".join(["%s"] * len(COLONNES))
@@ -110,7 +122,9 @@ def _sql_insert():
             f"ON DUPLICATE KEY UPDATE {maj}")
 
 
-def rapport_en_ligne(pa, pb, rapport, concordants):
+def rapport_en_ligne(
+    pa: Any, pb: Any, rapport: RapportComplet, concordants: list[str]
+) -> LigneComparaison:
     """Aplati une comparaison en une ligne (tuple) prête pour l'INSERT."""
     mariage = rapport["mariage"]
     valeurs = {
@@ -140,7 +154,7 @@ def rapport_en_ligne(pa, pb, rapport, concordants):
     return tuple(valeurs[c] for c in COLONNES)
 
 
-def _ordonner(pa, pb):
+def _ordonner(pa: Any, pb: Any) -> Paire:
     """Ordre canonique d'une paire pour éviter les doublons (A,B) vs (B,A).
         On trie par (arbre, identifiant)"""
     cle_a = (int(pa.tree_id), str(pa.person_id))
@@ -148,7 +162,7 @@ def _ordonner(pa, pb):
     return (pa, pb) if cle_a <= cle_b else (pb, pa)
 
 
-def paires_du_groupe(groupe):
+def paires_du_groupe(groupe: pd.DataFrame) -> Iterator[Paire]:
     """Paires à comparer à l'intérieur d'un groupe (personnes du même nom).
     On ignore les paires du même arbre et on respecte l'ordre canonique."""
     gens = list(groupe.itertuples(index=False))
@@ -157,7 +171,7 @@ def paires_du_groupe(groupe):
             yield _ordonner(pa, pb)
 
 
-def compter_paires(groupe):
+def compter_paires(groupe: pd.DataFrame) -> int:
     """Nombre de paires (arbres différents) d'un groupe, sans les construire.
     Sert à afficher l'avancement sans charger personne."""
     par_arbre = groupe["tree_id"].value_counts()
@@ -167,7 +181,7 @@ def compter_paires(groupe):
     return total - memes
 
 
-def enregistrer_lot(conn, sql_insert, lot):
+def enregistrer_lot(conn: Connection, sql_insert: str, lot: list[LigneComparaison]) -> int:
     """Enregistre un lot de comparaisons puis le vide.
     Renvoie le nombre de lignes enregistrées."""
     if not lot:
@@ -178,7 +192,11 @@ def enregistrer_lot(conn, sql_insert, lot):
     return n
 
 
-def comparer_groupe(groupe, personnes, min_criteres=1):
+def comparer_groupe(
+    groupe: pd.DataFrame,
+    personnes: dict[tuple[int, str], Personne],
+    min_criteres: int = 1,
+) -> list[LigneComparaison]:
     """Compare deux à deux les personnes d'un groupe (même nom).
 
     `personnes` : dict {(tree_id, person_id): Personne} déjà téléchargé.
@@ -200,7 +218,7 @@ def comparer_groupe(groupe, personnes, min_criteres=1):
     return lignes
 
 
-def apparier(conn, min_criteres=1, taille_lot=500):
+def apparier(conn: Connection, min_criteres: int = 1, taille_lot: int = 500) -> int:
     """Importer les noms partagés et les apparier selon nos métriques.
 
     On télécharge d'un coup toutes les personnes concernées (en lots). Ça pourrait être un probleme si on avait des millions de personnes dans la base.
@@ -229,7 +247,7 @@ def apparier(conn, min_criteres=1, taille_lot=500):
     personnes = charger_groupe(conn, gens)
     print(f"{len(personnes)} personnes téléchargées.\n")
 
-    lot = []
+    lot: list[LigneComparaison] = []
     faites = enregistres = 0
     dernier_pct = -1
 
@@ -251,7 +269,7 @@ def apparier(conn, min_criteres=1, taille_lot=500):
     print(f"\nTerminé : {enregistres} comparaisons enregistrées dans `{TABLE_COMPARAISONS}`.")
     return enregistres
 
-def main():
+def main() -> None:
     conn = get_connection()
     try:
         apparier(conn, min_criteres=1, taille_lot=500)
