@@ -2,16 +2,16 @@
 Comparer deux personnes pour décider si c'est la même.
 
 Une fois que `correspondances_noms.py` a trouvé des gens du même nom, on les
-compare ici. Chaque critère est une petite fonction `comparer_xxx(a, b)` qui
+compare ici. Chaque métrique est une petite fonction `comparer_xxx(a, b)` qui
 regarde une seule chose et renvoie un rapport (valeurs + `verdict`).
 
-Les 7 critères : naissance, baptême, décès, sépulture, mariage (nom du conjoint +
+Les 7 métriques : naissance, baptême, décès, sépulture, mariage (nom du conjoint +
 année), ascendants, et descendants (et le 8ème, période de vie estimée).
 
 Étapes :
   1. les personnes sont déjà chargées en objets `Personne` (`personnes.py`) ;
-  2. `comparer(a, b)` lance toutes les critères et renvoie un rapport par
-     critère
+  2. `comparer(a, b)` lance toutes les métriques et renvoie un rapport par
+     métrique
   3. on compare les proches par npm normalisé et les dates par année
   4. si une date manque, on estime la période de vie à partir des proches et
      des dates connues.
@@ -25,6 +25,12 @@ Pour les parents et les enfants, on ne regarde que le nom et l'année de naissan
 """
 
 from __future__ import annotations
+
+import os
+import sys
+
+# `db.py` est dans le dossier parent (scripts/) : on l'ajoute au chemin d'import pour pouvoir lancer ce fichier directement.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
@@ -40,7 +46,7 @@ ECART_MARIAGE = 28     # années entre une naissance et le mariage
 MARGE_PERIODE = 40     # écart max toléré entre deux périodes de vie estimées
 
 # --- Types des rapports de comparaison -------------------------------------
-# Chaque critère renvoie un petit rapport (un TypedDict ci-dessous). Le champ `verdict` résume le critère
+# Chaque métrique renvoie un petit rapport (un TypedDict ci-dessous). Le champ `verdict` résume la métrique
 VerdictAnnee = Literal["identique", "proche", "different", "inconnu"]
 VerdictMariage = Literal["identique", "proche", "meme_conjoint", "autre_conjoint", "inconnu"]
 VerdictPeriode = Literal["chevauchement", "proche", "different", "inconnu"]
@@ -49,7 +55,7 @@ VerdictNoms = Literal["communs", "aucun_commun", "inconnu"]
 
 class RapportAnnee(TypedDict, total=False):
     """Comparaison d'une année (naissance, décès, baptême, sépulture)."""
-    critere: str
+    metrique: str
     a: int | None
     b: int | None
     ecart: int | None
@@ -58,7 +64,7 @@ class RapportAnnee(TypedDict, total=False):
 
 class RapportMariage(TypedDict, total=False):
     """Comparaison des mariages (conjoints partagés, unions exactes/proches)."""
-    critere: str
+    metrique: str
     n_a: int
     n_b: int
     noms_communs: list[str]
@@ -70,7 +76,7 @@ class RapportMariage(TypedDict, total=False):
 
 class RapportPeriode(TypedDict, total=False):
     """Comparaison des périodes de vie estimées (chevauchement / écart)."""
-    critere: str
+    metrique: str
     a: tuple[int | None, int | None] | None
     b: tuple[int | None, int | None] | None
     methode_a: str
@@ -81,7 +87,7 @@ class RapportPeriode(TypedDict, total=False):
 
 class RapportNoms(TypedDict, total=False):
     """Comparaison de noms de proches (ascendants, descendants)."""
-    critere: str
+    metrique: str
     n_a: int
     n_b: int
     communs: list[str]
@@ -162,25 +168,25 @@ def _comparer_annee(ya: int | None, yb: int | None, proche: int = 3) -> RapportA
 
 def comparer_naissance(a: Personne, b: Personne, proche: int = 3) -> RapportAnnee:
     r = _comparer_annee(a.faits.get("BIRT"), b.faits.get("BIRT"), proche)
-    r["critere"] = "naissance"
+    r["metrique"] = "naissance"
     return r
 
 def comparer_deces(a: Personne, b: Personne, proche: int = 3) -> RapportAnnee:
     r = _comparer_annee(a.faits.get("DEAT"), b.faits.get("DEAT"), proche)
-    r["critere"] = "deces"
+    r["metrique"] = "deces"
     return r
 
 def comparer_bapteme(a: Personne, b: Personne, proche: int = 3) -> RapportAnnee:
     ya = a.faits.get("BAPM") or a.faits.get("CHR")
     yb = b.faits.get("BAPM") or b.faits.get("CHR")
     r = _comparer_annee(ya, yb, proche)
-    r["critere"] = "bapteme"
+    r["metrique"] = "bapteme"
     return r
 
 
 def comparer_sepulture(a: Personne, b: Personne, proche: int = 3) -> RapportAnnee:
     r = _comparer_annee(a.faits.get("BURI"), b.faits.get("BURI"), proche)
-    r["critere"] = "sepulture"
+    r["metrique"] = "sepulture"
     return r
 
 
@@ -237,7 +243,7 @@ def comparer_mariage(a: Personne, b: Personne, proche: int = 2) -> RapportMariag
     else:
         verdict = "inconnu"
 
-    return {"critere": "mariage",
+    return {"metrique": "mariage",
             "n_a": len(mariages_a), "n_b": len(mariages_b),
             "noms_communs": sorted(conjoints_communs),
             "n_noms_communs": len(conjoints_communs),
@@ -249,7 +255,7 @@ def comparer_periode_estimee(a: Personne, b: Personne, marge: int = MARGE_PERIOD
     # Debut et fin de la période de vie estimée
     da, fa, methode_a = periode_active(a)
     db, fb, methode_b = periode_active(b)
-    r: RapportPeriode = {"critere": "periode_estimee",
+    r: RapportPeriode = {"metrique": "periode_estimee",
          "a": (da, fa) if da is not None else None,
          "b": (db, fb) if db is not None else None,
          "methode_a": methode_a, "methode_b": methode_b}
@@ -283,16 +289,16 @@ def _comparer_noms(proches_a: list[Proche], proches_b: list[Proche]) -> RapportN
 
 def comparer_ascendants(a: Personne, b: Personne) -> RapportNoms:
     r = _comparer_noms(a.parents, b.parents)
-    r["critere"] = "ascendants"
+    r["metrique"] = "ascendants"
     return r
 
 def comparer_descendants(a: Personne, b: Personne) -> RapportNoms:
     r = _comparer_noms(a.enfants, b.enfants)
-    r["critere"] = "descendants"
+    r["metrique"] = "descendants"
     return r
 
 
-CRITERES = (
+METRIQUES = (
     comparer_naissance,
     comparer_bapteme,
     comparer_deces,
@@ -305,11 +311,11 @@ CRITERES = (
 
 
 def comparer(a: Personne, b: Personne) -> RapportComplet:
-    """Lance toutes les critères et renvoie {nom_critere: rapport}."""
+    """Lance toutes les métriques et renvoie {nom_metrique: rapport}."""
     resultats: RapportComplet = {}
-    for fn in CRITERES:
+    for fn in METRIQUES:
         r = fn(a, b)
-        resultats[r["critere"]] = r
+        resultats[r["metrique"]] = r
     return resultats
 
 
@@ -336,7 +342,7 @@ def _ecart_txt(ecart: int | None) -> str:
 
 
 def _detail_comparaison(nom: str, r: Rapport) -> str:
-    """Texte propre à chaque type de critère (noms, intervalle, mariage, année)."""
+    """Texte propre à chaque type de métrique (noms, intervalle, mariage, année)."""
     if "communs" in r:  # noms (parents, enfants, conjoints)
         communs = f" : {', '.join(r['communs'])}" if r["communs"] else ""
         return f"{r['n_communs']} commun(s){communs} (A={r['n_a']}, B={r['n_b']})"

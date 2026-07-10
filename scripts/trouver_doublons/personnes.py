@@ -25,10 +25,14 @@ Grace aux lots, ce script est très rapide. On pourrait faire millions de compar
 
 from __future__ import annotations
 
+import os
+import sys
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, TypedDict
 
 import pandas as pd
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from correspondances_noms import normaliser
 from db import run_query, t

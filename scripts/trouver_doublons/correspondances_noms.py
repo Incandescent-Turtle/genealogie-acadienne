@@ -21,8 +21,12 @@ Ici, on rapproche les noms de façon EXACTE (après normalisation) : deux graphi
 
 from __future__ import annotations
 
+import os
+import sys
 import unicodedata
 from typing import TYPE_CHECKING
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from db import run_query, t
 
