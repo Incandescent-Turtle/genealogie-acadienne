@@ -1,14 +1,28 @@
 """
-Examiner les personnes qui partegent un même nom et les apparier selon nos métriques.
+Le script principal de la tâche "trouver_doublons", le point d'entrée.
 
-On sauvegarde uniquement les paires avec au moins `--min-criteres` correspondances (1 par défaut
+Ce script, il utilse les trois autres modules, et à la fin il enregistre les résultats dans la base de données.
 
-Pour ces paires, on conserve toutes les données afin de :
-  - se rappeler qu'elles ont été traitées
-  - voir ce qu'elles ont en commun
-  - pouvoir les filtrer plus tard (par ex. 7+ correspondances)
+Étapes :
+  1. charger tous les noms et repérer ceux partagés entre arbres (`correspondances_noms.py`)
+  2. télécharger en lot les personnes concernées (`personnes.py`)
+  3. comparer chaque paire du même nom (`comparer_personnes.py`)
+  4. enregistrer dans la table `person_comparisons` les paires ayant au moins `min_criteres` critères concordants (1 par défaut).
 
-Comme il y a beaucoup de noms, on peut fixer une LIMITE de comparaisons.
+On garde toutes les données de chaque paire retenue afin de :
+  - se rappeler qu'elle a été traitée
+  - voir ce que les deux personnes ont en commun
+  - la filtrer plus tard sur les critères concordants, etc.
+
+On ne compare jamais deux personnes du même arbre (mais on veut changer cela plus tard).
+
+À ajouter :
+  - regrouper les paires en « grappes » (une même personne peut apparaître
+    dans plusieurs paires). Marquer toutes les paires dans lesquelles une personne apparaît.
+  - regarder aussi les personnes dans le même arbre
+
+Ce script est tellement rapide que l'on pourrait faire des millions de comparaisons sans problème, dans quelques minutes.
+On n'a pas besion de modifications pour faire des millions de comparaisons -- le seul truc qu'on peut améliorer, c'est de trouver plus de paires qui peuvent être comparées (en regardant les variantes orthographiques, les homophones, etc.)
 """
 
 from __future__ import annotations

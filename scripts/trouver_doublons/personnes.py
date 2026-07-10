@@ -1,5 +1,26 @@
 """
 Modèle `Personne` et chargement depuis la base de données.
+
+Fournit l'objet `Personne` (nom, sexe, faits datés, mariages, parents, enfants,
+conjoints) utilisé par le reste du pipeline.
+
+Le chargement se fait EN LOT pour rester rapide : au lieu d'une requête par
+personne, on télécharge tout un arbre en quelques requêtes `IN (...)`.
+
+Étapes (`charger_groupe`) :
+  1. regrouper les identifiants demandés par arbre
+  2. pour chaque arbre, lire en lot : nom + sexe, faits datés, mariages, puis
+     les liens (parents, enfants, conjoints)
+  3. charger d'un coup les proches (on garde leur nom + année de naissance)
+  4. assembler le tout en objets `Personne`
+
+Les requêtes sont découpées en morceaux de `TAILLE_LOT_SQL` identifiants.
+
+À ajouter :
+  - charger plus d'informations sur les proches (pas seulement la naissance),
+    pour permettre une comparaison plus fine des ascendants/descendants
+
+Grace aux lots, ce script est très rapide. On pourrait faire millions de comparaisons sans problème, dans quelques minutes.
 """
 
 from __future__ import annotations

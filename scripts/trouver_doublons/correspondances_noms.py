@@ -1,5 +1,22 @@
 """
 Trouver les noms partagés entre plusieurs arbres.
+
+Première étape du pipeline : repérer les personnes qui pourraient être des doublons parce qu'elles portent le même nom dans des arbres différents.
+
+Étapes :
+  1. `charger_personnes` lit tous les noms (table `name`) et normalise chacun
+     (minuscules, sans accents ni ponctuation) ;
+  2. on écarte les arbres de `ARBRES_IGNORES` ;
+  3. `trouver_noms_partages` regroupe par nom normalisé et garde les noms
+     présents dans au moins 2 arbres (chaque groupe reçoit un `groupe_id`).
+
+Ici, on rapproche les noms de façon EXACTE (après normalisation) : deux graphies différentes du même nom ne se rencontrent pas encore.
+
+À ajouter :
+  - rapprocher les noms proches : homophones, fautes de frappe, deuxièmes
+    prénoms (RapidFuzz ou comparaison phonétique)
+  - gérer les noms à particule ou les noms de famille multiples
+  - regarder aussi les personnes dans le même arbre
 """
 
 from __future__ import annotations

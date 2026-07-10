@@ -1,22 +1,27 @@
 """
-Comparer DEUX personnes pour décider si c'est la même.
+Comparer deux personnes pour décider si c'est la même.
 
-Après que `correspondances_noms.py` a trouvé des gens qui portent le même nom,
-On les compare ici en utilisant les métriques suivantes : 
-naissance, baptême, décès, sépulture, mariage (nom du conjoint + année), ascendants, descendants, et période de vie.
+Une fois que `correspondances_noms.py` a trouvé des gens du même nom, on les
+compare ici. Chaque métrique est une petite fonction `comparer_xxx(a, b)` qui
+regarde une seule chose et renvoie un rapport (valeurs + `verdict`).
 
-Principe (modulaire) :
-  1. le chargement des personnes se fait dans `personnes.py` -> objet `Personne` ;
-  2. chaque métrique est une fonction séparée `comparer_xxx(a, b)` qui explore
-     une seule chose et renvoie un petit rapport (valeurs + verdict) ;
-  3. `comparer(a, b)` rassemble toutes les métriques.
+Les 7 métriques : naissance, baptême, décès, sépulture, mariage (nom du conjoint +
+année), ascendants, et descendants (et le 8ème, période de vie estimée).
 
-On compare les proches par leur NOM normalisé et les dates par ANNÉE. 
-Si une date manque, on estime la période de vie à partir des proches (et des dates connues).
+Étapes :
+  1. les personnes sont déjà chargées en objets `Personne` (`personnes.py`) ;
+  2. `comparer(a, b)` lance toutes les métriques et renvoie un rapport par
+     métrique
+  3. on compare les proches par npm normalisé et les dates par année
+  4. si une date manque, on estime la période de vie à partir des proches et
+     des dates connues.
 
-Maintenant, quand on regard les parents ou les enfants, on regarde seulmente les nom and les dates de naissance.
-Une meilleure stratégie consisterait à examiner tous les faits concernant ces personnes, à l'exception des enfants et des parents (parce que ça serait un cercle).
-Je ne said pas si ^ ça c'est necessaire. Mais je pense qu'on devrait examiner les noms moins precise -- les deuxièmes prénoms, les homophones, etc.
+Pour les parents et les enfants, on ne regarde que le nom et l'année de naissance. Mais on pourrait en regarder plus profondément. Faire attention de ne pastourner en rond entre proches.
+
+À ajouter :
+  - comparer les noms de façon plus souple : homophones, fautes de frappe, deuxièmes prénoms (RapidFuzz ou comparaison phonétique), variantes orthographiques, etc.
+  - un contrôle plus profond des ascendants/descendants : plus d'un niveau, ou tous leurs faits sauf le lien de parenté
+  - créer une formule pour pondérer les critères, pour donner un score final à la comparaison. Elle devrait tenir compte d'information contradictoires vs valeurs inconnues, les critères plus fortes, etc.	
 """
 
 from __future__ import annotations
