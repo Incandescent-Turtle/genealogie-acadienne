@@ -11,12 +11,12 @@ Pour ces paires, on conserve toutes les données afin de :
 Comme il y a beaucoup de noms, on peut fixer une LIMITE de comparaisons.
 """
 
-import argparse
 from itertools import combinations
 
-from comparer_personnes import charger_personne, comparer
+from comparer_personnes import comparer
 from correspondances_noms import charger_personnes, trouver_noms_partages
 from db import execute, get_connection, t
+from personnes import charger_groupe
 
 # Pour chaque métrique, les verdicts qui comptent comme une "concordance".
 # (voir comparer_personnes.py pour la liste des verdicts possibles)
@@ -167,14 +167,6 @@ def compter_paires(groupe):
     return total - memes
 
 
-def charger_personne_cache(conn, cache, tree_id, person_id):
-    """Charge une personne en la mettant en cache (chargée une seule fois)."""
-    cle = (int(tree_id), str(person_id))
-    if cle not in cache:
-        cache[cle] = charger_personne(conn, *cle)
-    return cache[cle]
-
-
 def enregistrer_lot(conn, sql_insert, lot):
     """Enregistre un lot de comparaisons puis le vide.
     Renvoie le nombre de lignes enregistrées."""
@@ -186,22 +178,19 @@ def enregistrer_lot(conn, sql_insert, lot):
     return n
 
 
-def comparer_groupe(conn, groupe, min_criteres=1):
+def comparer_groupe(groupe, personnes, min_criteres=1):
     """Compare deux à deux les personnes d'un groupe (même nom).
 
-    Les personnes du groupe sont téléchargées une seule fois dans un cache
-    local.
+    `personnes` : dict {(tree_id, person_id): Personne} déjà téléchargé.
 
     Renvoie `lignes` : les tuples prêts pour l'INSERT (paires ayant au moins
     `min_criteres` critères concordants).
     """
-    cache = {}  # local au groupe : chaque personne chargée une seule fois
     lignes = []
     for pa, pb in paires_du_groupe(groupe):
-        try:
-            a = charger_personne_cache(conn, cache, pa.tree_id, pa.person_id)
-            b = charger_personne_cache(conn, cache, pb.tree_id, pb.person_id)
-        except ValueError:
+        a = personnes.get((int(pa.tree_id), str(pa.person_id)))
+        b = personnes.get((int(pb.tree_id), str(pb.person_id)))
+        if a is None or b is None:
             continue  # personne introuvable : on saute
 
         rapport = comparer(a, b)
@@ -214,8 +203,7 @@ def comparer_groupe(conn, groupe, min_criteres=1):
 def apparier(conn, min_criteres=1, taille_lot=500):
     """Importer les noms partagés et les apparier selon nos métriques.
 
-    On traite un nom à la fois : charger les personnes, comparer, enregistrer,
-    puis oublier avant de passer au nom suivant.
+    On télécharge d'un coup toutes les personnes concernées (en lots). Ça pourrait être un probleme si on avait des millions de personnes dans la base.
 
     On n'enregistre que les paires ayant au moins `min_criteres` critères
     concordants.
@@ -232,16 +220,21 @@ def apparier(conn, min_criteres=1, taille_lot=500):
     groupes = partages.groupby("groupe_id")
     total = sum(compter_paires(g) for _, g in groupes)
     print(f"{groupes.ngroups} noms partagés, {total} comparaisons à faire "
-          f"(enregistrées dans `{TABLE_COMPARAISONS}`).\n")
+          f"(enregistrées dans `{TABLE_COMPARAISONS}`).")
     if total == 0:
         return 0
+
+    # télécharger d'un coup toutes les personnes concernées
+    gens = partages[["tree_id", "person_id"]].drop_duplicates().itertuples(index=False)
+    personnes = charger_groupe(conn, gens)
+    print(f"{len(personnes)} personnes téléchargées.\n")
 
     lot = []
     faites = enregistres = 0
     dernier_pct = -1
 
     for _, groupe in groupes:
-        lot.extend(comparer_groupe(conn, groupe, min_criteres))
+        lot.extend(comparer_groupe(groupe, personnes, min_criteres))
         faites += compter_paires(groupe)
 
         if len(lot) >= taille_lot:
