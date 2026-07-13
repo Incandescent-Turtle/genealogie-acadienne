@@ -95,3 +95,34 @@ python scripts/trouver_erreurs.py
 `apparier_personnes.py` crée la table `person_comparisons` si besoin, télécharge
 en lot toutes les personnes qui partagent un nom, les compare deux à deux, et
 enregistre chaque paire ayant au moins un critère concordant.
+
+## Les Prochaines Étapes
+### Où on est en ce moment
+Maintenant, ces scripts marchent pour trouver les paires d'individus qui sont peut-être les même, basé sur les critère de naissance, décès, sepulture, batpême, enfants, parents, et mariages. Les scripts sont très vite, et peut examiner une base de 150.000 individus, trouver 600.000 paires qui partagent un nom, les analyser, et présenter celles qui partagent les critères -- en moins d'une minute.
+
+On cherche les individus qui ont exactement les mêmes noms. On ne cherche pas les variantes orthographiques ni les homonymes. 
+
+### L'Amélioration de trouver les paires
+La première chose qu'on pourrait faire, c'est inclure les variantes orthographiques dans nos comparaisons. Les homonymes, les erreurs de saiser, l'abscense ou l'ajout d'un deuxième nom, etc.
+
+Une Mary pourrait être une Marie dans la base, par exemple, ou une Marie Louise Comeaux pourrait aussi être Louise Comeaux.
+
+Cette méthode donnerait plus de paires --- avec les scripts actuels, on en a environ 600.000, et avec ces modifications-ci, on en aurait peut-être quelques millions. Mais nos scripts sont vites, donc les temps d'exécution ne posent pas de problème.
+
+### L'Attribution d'un score
+On garde entre 18.000 et 29.000 paires d'indivus qui partagent un critère ou plus -- c'est impossible de faire toutes ces comparaisons à la main.
+
+Donc, pour économiser du temps, on veut d'abord examiner les paires dont on est déjà assez certaines qu'ils sont les mêmes -- celles qui sont plus facile à comparer. 
+
+On voudrait inclure les faits contradictoire, les periodes estimées impossibles ou improbables, le nombre de critère partagés, quels critères sont partagées, et les choses comme ça. On commencerait par celles qui partage 7 critères j'imagine.
+
+Donc, on devrait créer une algorithme, ou une formule, pour attribuer un score aux paires pour nous dire lequelles sont les plus probables d'être les mêmes. 
+
+### Que faire des résultats ?
+En ce moment, on a tous les paires ; mais qu'est-ce qu'on devrait faire en ce moment-ci ? 
+
+Les paires doivent être présentées à un expert afin de vérifier s'il s'agit bien des mêmes personnes ou non. Pour faire ceci, on ne peut pas vraiment utiliser WebTrees, parce que il est trop lent et il n'est pas conçu pour faire des comparaisons. On ne peut pas utiliser un fichier Excel non-plus, pour les mêmes raisons. 
+
+D'après moi, on devrait créer un "site web" simple pour afficher des paires. On pourrait afficher une paire côte à côte : ça renderait souligner des similitudes et l'information contradictoire plus facile. On connecterait à la base de données et chargerait toutes les paires sur le site, et montrerait des boutons pour marquer une correspondance à chacun. Cette méthode est dynamique et conçu prècisement pour faire des comparaisons.
+
+Aussi, plusiers personnes pourraient travailler sur la tâche de vérification en même temps.
