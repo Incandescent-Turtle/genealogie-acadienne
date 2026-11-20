@@ -16,6 +16,9 @@ API publique :
                   alias_dit, tokens_prenoms, trouver_paires (par prénoms partagés)
   - comparaison : comparer (deux Personne en mémoire), criteres_concordants, VERDICTS_POSITIFS
   - GEDCOM      : evenements_gedcom (date + lieu des événements d'un GEDCOM brut)
+  - instantanés : ecrire_instantane, lire_instantane, instantane_depuis_base (Parquet)
+Les autres outils (variantes, candidats, dates, voisinage, clonage, synthétique)
+sont dans `genealogie_acadienne.commun`.
 
 Les noms de `donnees` sont chargés à la demande : `import genealogie_acadienne`
 (ou `genealogie_acadienne.commun`) n'importe ni pandas ni pymysql.
@@ -54,11 +57,15 @@ if TYPE_CHECKING:
         get_connection,
         load_env_file,
         set_table_prefix,
+        ecrire_instantane,
+        lire_instantane,
+        instantane_depuis_base,
     )
 
 _DONNEES = {
     "DBConfig", "get_connection", "load_env_file", "set_table_prefix",
     "charger_personnes", "charger_groupe", "charger_personne",
+    "ecrire_instantane", "lire_instantane", "instantane_depuis_base",
 }
 
 
@@ -101,4 +108,7 @@ __all__ = [
     "alias_dit",
     "tokens_prenoms",
     "trouver_paires",
+    "ecrire_instantane",
+    "lire_instantane",
+    "instantane_depuis_base",
 ]

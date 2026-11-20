@@ -117,10 +117,17 @@ vont dans un seul sens : `commun` ← `donnees` ← `pipeline`.
 | `commun/noms.py`                   | `normaliser`, noms partagés entre arbres (`trouver_noms_partages`), alias « dit » (`alias_dit`) et appariement par prénoms partagés (`trouver_paires`). |
 | `commun/comparaison.py`            | Compare **deux** personnes et renvoie un rapport (métriques + verdicts).                      |
 | `commun/criteres.py`               | Verdicts qui comptent comme concordance, et `criteres_concordants`.                           |
+| `commun/variantes.py`              | Formes canoniques des prénoms (Marie / Mary) et clés orthographiques des noms de famille (Comeau / Comeaux), alias « dit » comme noms de famille. |
+| `commun/candidats.py`              | Candidats par nom « relâché » : même clé de nom de famille et au moins un prénom canonique en commun (`IndexCandidats`). |
+| `commun/dates.py`                  | Dates GEDCOM (ABT, BEF, AFT, BET…AND) : lecture, écart en années, décalage. |
+| `commun/voisinage.py`              | Liens familiaux typés (`parent_de`, `enfant_de`, `conjoint_de`) et voisinage à k sauts. |
+| `commun/clonage.py`                | Copier une personne et sa famille dans un autre arbre (doublons connus pour l'évaluation). |
+| `commun/synthetique.py`            | Population acadienne synthétique multi-arbres, avec la vérité terrain des doublons. |
 | **`donnees/`**                     | **Accès à la base** WebTrees.                                                                 |
 | `donnees/db.py`                    | Connexion (`DBConfig`, variables d'environnement, `.env` optionnel) et utilitaires SQL.       |
 | `donnees/noms.py`                  | Charge tous les noms (en écartant les arbres de `ARBRES_IGNORES`).                            |
 | `donnees/personnes.py`             | Charge des `Personne` depuis la base (une personne, ou des milliers en lots).                 |
+| `donnees/instantane.py`            | Instantanés Parquet : exporter toute la base une fois (`instantane_depuis_base`), puis relire les `Personne` sans base. |
 | **`pipeline/`**                    | **Les tâches de ce dépôt** (points d'entrée).                                                 |
 | `pipeline/apparier_personnes.py`   | Trouve les doublons et enregistre les paires dans `person_comparisons`.                       |
 | `pipeline/noms_partages.py`        | Exporte un résumé des noms partagés (`temp/partages_resume.csv`).                             |
