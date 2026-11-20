@@ -24,7 +24,7 @@ Le plus simple :
 3. Entrer les credentials de la base de données pour connecter.
 
 Par défaut, les tables portent le préfixe `wt_` (modifiable via `DB_PREFIX`,
-voir `scripts/db.py`).
+voir `src/genealogie_acadienne/donnees/db.py`).
 
 ## Installation
 
@@ -38,10 +38,36 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 
-pip install -r requirements.txt
+pip install -e ".[test]"     # installe le paquet `genealogie_acadienne` en mode éditable
+# (optionnel) l'environnement de travail complet, avec Jupyter, etc. :
+# pip install -r requirements.txt
 ```
 
-Python 3.13 est recommandé.
+Python 3.13 ou plus récent est requis.
+
+### Depuis un autre projet
+
+Le dépôt s'installe comme un paquet Python (`genealogie_acadienne`) :
+
+```bash
+# copie locale, en mode éditable
+pip install -e ../genealogie-acadienne
+
+# depuis git, épinglé sur un commit précis (recommandé pour la reproductibilité)
+pip install "genealogie-acadienne @ git+https://github.com/<compte>/genealogie-acadienne.git@<hash_du_commit>"
+```
+
+```python
+from genealogie_acadienne import DBConfig, get_connection, charger_groupe, comparer
+
+conn = get_connection(DBConfig(host="127.0.0.1", user="root", password="...", database="webtrees"))
+```
+
+Importer le paquet n'ouvre **aucune** connexion et ne lit **pas** le `.env`.
+Sans `DBConfig`, `get_connection()` lit les variables d'environnement
+`DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME`, `DB_PORT` (et `DB_PREFIX` pour le
+préfixe des tables). `load_env_file()` charge un `.env` si on le souhaite.
+`comparer(a, b)` fonctionne sur des objets `Personne` en mémoire, sans base.
 
 ## Configuration
 
@@ -61,35 +87,58 @@ Le fichier `.env` n'est pas versionné.
 ## Fichiers principaux
 
 
-| Fichier                      | Rôle                                                                                                |
-| ---------------------------- | --------------------------------------------------------------------------------------------------- |
-| `scripts/db.py`              | Connexion partagée à la base (lit `.env`) et petits utilitaires SQL.                                |
-| `scripts/trouver_doublons/`  | La tâche principale : trouver les personnes en double.                                              |
-| `correspondances_noms.py`    | Charge tous les noms et repère ceux partagés entre arbres.                                          |
-| `personnes.py`               | Modèle `Personne` + chargement depuis la base (une personne, ou des milliers en lots).              |
-| `comparer_personnes.py`      | Compare **deux** personnes et renvoie un rapport (métriques + verdicts).                            |
-| `apparier_personnes.py`      | **Point d'entrée** : assemble les trois modules et enregistre les paires dans `person_comparisons`. |
-| `scripts/statistiques.py`    | Statistiques générales (durée de vie, âges, etc.). Lecture seule.                                   |
-| `scripts/trouver_erreurs.py` | Repère les erreurs de saisie (dates impossibles, etc.). Lecture seule.                              |
-| `documents/`                 | Notes et questions de travail.                                                                      |
-| `rapports/`                  | Sorties générées par les scripts.                                                                   |
+Le code est dans `src/genealogie_acadienne/`, en trois couches. Les dépendances
+vont dans un seul sens : `commun` ← `donnees` ← `pipeline`.
+
+| Fichier                            | Rôle                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------------- |
+| `__init__.py`                      | API publique du paquet (connexion, `Personne`, chargement, noms, comparaison).                |
+| **`commun/`**                      | **Fonctions pures** : aucune base, aucune entrée/sortie, ni pandas ni pymysql à l'import.    |
+| `commun/modele.py`                 | Modèle `Personne` (+ `Mariage`, `Proche`, `Faits`).                                           |
+| `commun/noms.py`                   | `normaliser`, et regroupement des noms partagés entre arbres (`trouver_noms_partages`).       |
+| `commun/comparaison.py`            | Compare **deux** personnes et renvoie un rapport (métriques + verdicts).                      |
+| `commun/criteres.py`               | Verdicts qui comptent comme concordance, et `criteres_concordants`.                           |
+| **`donnees/`**                     | **Accès à la base** WebTrees.                                                                 |
+| `donnees/db.py`                    | Connexion (`DBConfig`, variables d'environnement, `.env` optionnel) et utilitaires SQL.       |
+| `donnees/noms.py`                  | Charge tous les noms (en écartant les arbres de `ARBRES_IGNORES`).                            |
+| `donnees/personnes.py`             | Charge des `Personne` depuis la base (une personne, ou des milliers en lots).                 |
+| **`pipeline/`**                    | **Les tâches de ce dépôt** (points d'entrée).                                                 |
+| `pipeline/apparier_personnes.py`   | Trouve les doublons et enregistre les paires dans `person_comparisons`.                       |
+| `pipeline/noms_partages.py`        | Exporte un résumé des noms partagés (`temp/partages_resume.csv`).                             |
+| `pipeline/comparer_paire.py`       | Charge et compare une paire précise (exemple / débogage).                                     |
+| `pipeline/statistiques.py`         | Statistiques générales (durée de vie, âges, etc.). Lecture seule.                             |
+| `pipeline/trouver_erreurs.py`      | Repère les erreurs de saisie (dates impossibles, etc.). Lecture seule.                        |
+| `tests/`                           | Tests `pytest` (aucune base de données nécessaire).                                           |
+| `documents/`                       | Notes et questions de travail.                                                                |
+| `rapports/`                        | Sorties générées par les scripts.                                                             |
 
 
 
 
 ## Exécution
 
-Avec le `.venv` activé et le `.env` configuré :
+Avec le `.venv` activé, le paquet installé et le `.env` configuré, depuis la
+racine du dépôt (les fichiers de sortie sont écrits dans le dossier courant) :
 
 ```bash
 # Trouver les doublons -> écrit dans la table `person_comparisons`
-python scripts/trouver_doublons/apparier_personnes.py
+genealogie-apparier
+# ou : python -m genealogie_acadienne.pipeline.apparier_personnes
 
-# Statistiques (lecture seule)
-python scripts/statistiques.py
+# Statistiques (lecture seule) -> rapports/statistiques.md
+genealogie-statistiques
+# ou : python -m genealogie_acadienne.pipeline.statistiques
 
-# Détection d'erreurs de saisie (lecture seule)
-python scripts/trouver_erreurs.py
+# Détection d'erreurs de saisie (lecture seule) -> erreurs_a_corriger.txt
+genealogie-erreurs
+# ou : python -m genealogie_acadienne.pipeline.trouver_erreurs
+
+# Autres tâches
+python -m genealogie_acadienne.pipeline.noms_partages    # -> temp/partages_resume.csv
+python -m genealogie_acadienne.pipeline.comparer_paire   # compare une paire d'exemple
+
+# Tests (aucune base nécessaire)
+pytest
 ```
 
 `apparier_personnes.py` crée la table `person_comparisons` si besoin, télécharge
