@@ -46,3 +46,20 @@ def personne(nom: str = "Jean Babin", tree_id: int = 1, person_id: str = "I1",
     faits = kwargs.pop("faits", {})
     return Personne(tree_id=tree_id, person_id=person_id, nom_complet=nom,
                     nom_norm=normaliser(nom), sexe=sexe, faits=faits, **kwargs)
+
+
+@pytest.fixture
+def famille():
+    """Jean Babin + Marie Léger -> Pierre, Anne ; Pierre + Cécile Comeau -> Joseph.
+    Proches reliés par `person_id` (voir `familles.py`)."""
+    from familles import personne as p, relier
+
+    jean = p("I1", "Jean Babin", "M", 1700, nom_famille="Babin")
+    marie = p("I2", "Marie Léger", "F", 1705, nom_famille="Léger")
+    pierre = p("I3", "Pierre Babin", "M", 1726, nom_famille="Babin")
+    anne = p("I4", "Anne Babin", "F", 1728, nom_famille="Babin")
+    cecile = p("I5", "Cécile Comeau", "F", 1730, nom_famille="Comeau")
+    joseph = p("I6", "Joseph Babin", "M", 1752, nom_famille="Babin")
+    relier(jean, marie, [pierre, anne])
+    relier(pierre, cecile, [joseph])
+    return [jean, marie, pierre, anne, cecile, joseph]
