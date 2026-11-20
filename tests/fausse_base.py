@@ -22,7 +22,7 @@ CREATE TABLE wt_gedcom (gedcom_id INTEGER, gedcom_name TEXT);
 CREATE TABLE wt_individuals (i_id TEXT, i_file INTEGER, i_sex TEXT, i_gedcom TEXT);
 CREATE TABLE wt_name (n_file INTEGER, n_id TEXT, n_num INTEGER, n_type TEXT,
                       n_full TEXT, n_givn TEXT, n_surn TEXT);
-CREATE TABLE wt_families (f_id TEXT, f_file INTEGER, f_husb TEXT, f_wife TEXT);
+CREATE TABLE wt_families (f_id TEXT, f_file INTEGER, f_husb TEXT, f_wife TEXT, f_gedcom TEXT);
 CREATE TABLE wt_link (l_file INTEGER, l_from TEXT, l_type TEXT, l_to TEXT);
 CREATE TABLE wt_dates (d_file INTEGER, d_gid TEXT, d_fact TEXT, d_year INTEGER);
 """
@@ -47,6 +47,11 @@ AUTRES_NOMS = [
 FAMILLES = [("F1", "I1", "I2"), ("F2", "I3", "I5"), ("F3", None, "I7")]
 ENFANTS = [("F1", "I3"), ("F1", "I4"), ("F2", "I6")]
 MARIAGES = [("F1", 1725), ("F2", 1750)]
+# GEDCOM brut supplémentaire (dates complètes + lieux)
+GEDCOM_INDIVIDUS = {
+    "I1": "1 BIRT\n2 DATE ABT 3 MAR 1700\n2 PLAC Port-Royal,\n3 CONC  Acadie\n1 DEAT Y",
+}
+GEDCOM_FAMILLES = {"F1": "1 MARR\n2 DATE 1725\n2 PLAC Grand-Pré"}
 
 
 def creer(arbre: int = 1) -> sqlite3.Connection:
@@ -56,7 +61,8 @@ def creer(arbre: int = 1) -> sqlite3.Connection:
     conn.execute("INSERT INTO wt_gedcom VALUES (?, ?)", (arbre, "BABIN"))
     for xref, sexe, nom, givn, surn, naissance in INDIVIDUS:
         conn.execute("INSERT INTO wt_individuals VALUES (?, ?, ?, ?)",
-                     (xref, arbre, sexe, f"0 @{xref}@ INDI\n1 NAME {nom}"))
+                     (xref, arbre, sexe, f"0 @{xref}@ INDI\n1 NAME {nom}\n"
+                                         + GEDCOM_INDIVIDUS.get(xref, "")))
         conn.execute("INSERT INTO wt_name VALUES (?, ?, 0, 'NAME', ?, ?, ?)",
                      (arbre, xref, nom, givn, surn))
         if naissance:
@@ -66,7 +72,8 @@ def creer(arbre: int = 1) -> sqlite3.Connection:
         conn.execute("INSERT INTO wt_name VALUES (?, ?, ?, ?, ?, ?, ?)",
                      (arbre, xref, num, type_, nom, givn, surn))
     for fam, husb, wife in FAMILLES:
-        conn.execute("INSERT INTO wt_families VALUES (?, ?, ?, ?)", (fam, arbre, husb, wife))
+        conn.execute("INSERT INTO wt_families VALUES (?, ?, ?, ?, ?)",
+                     (fam, arbre, husb, wife, f"0 @{fam}@ FAM\n" + GEDCOM_FAMILLES.get(fam, "")))
         for conjoint in (husb, wife):
             if conjoint:
                 conn.execute("INSERT INTO wt_link VALUES (?, ?, 'FAMS', ?)",

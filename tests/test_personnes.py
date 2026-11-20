@@ -29,11 +29,12 @@ def test_proches_ont_leur_identifiant(gens):
 def test_mariages_ont_l_identifiant_du_conjoint(gens):
     assert gens[(1, "I1")].mariages == [{
         "annee": 1725, "conjoint": "Marie Léger", "conjoint_norm": "marie leger",
-        "conjoint_id": "I2",
+        "conjoint_id": "I2", "date": "1725", "lieu": "Grand-Pré",
     }]
     # F3 n'a qu'un parent : conjoint inconnu
     assert gens[(1, "I7")].mariages == [{
         "annee": None, "conjoint": None, "conjoint_norm": None, "conjoint_id": None,
+        "date": None, "lieu": None,
     }]
 
 
@@ -55,3 +56,10 @@ def test_parties_inconnues_vides():
     from genealogie_acadienne.donnees.personnes import _partie_nom
     assert _partie_nom("@P.N.") == "" and _partie_nom(None) == ""
     assert _partie_nom(" Jean  Baptiste ") == "Jean Baptiste"
+
+
+def test_dates_completes_et_lieux(gens):
+    jean = gens[(1, "I1")]
+    assert jean.dates == {"BIRT": "ABT 3 MAR 1700"}
+    assert jean.lieux == {"BIRT": "Port-Royal, Acadie"}
+    assert gens[(1, "I3")].dates == {} and gens[(1, "I3")].lieux == {}

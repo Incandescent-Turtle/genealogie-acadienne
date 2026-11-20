@@ -14,6 +14,7 @@ API publique :
   - chargement  : charger_personnes (noms -> DataFrame), charger_groupe, charger_personne
   - noms        : normaliser, trouver_noms_partages, chercher_meme_nom
   - comparaison : comparer (deux Personne en mémoire), criteres_concordants, VERDICTS_POSITIFS
+  - GEDCOM      : evenements_gedcom (date + lieu des événements d'un GEDCOM brut)
 
 Les noms de `donnees` sont chargés à la demande : `import genealogie_acadienne`
 (ou `genealogie_acadienne.commun`) n'importe ni pandas ni pymysql.
@@ -26,6 +27,7 @@ from typing import TYPE_CHECKING
 
 from .commun import (
     VERDICTS_POSITIFS,
+    Evenement,
     Faits,
     Mariage,
     Personne,
@@ -34,6 +36,7 @@ from .commun import (
     chercher_meme_nom,
     comparer,
     criteres_concordants,
+    evenements_gedcom,
     normaliser,
     trouver_noms_partages,
 )
@@ -89,4 +92,6 @@ __all__ = [
     "RapportComplet",
     "criteres_concordants",
     "VERDICTS_POSITIFS",
+    "evenements_gedcom",
+    "Evenement",
 ]

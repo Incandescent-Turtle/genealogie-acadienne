@@ -7,6 +7,7 @@ Aucune base de données, aucune entrée/sortie ; n'importe ni pandas ni pymysql
 """
 
 from .comparaison import RapportComplet, afficher_comparaison, comparer
+from .gedcom import Evenement, evenements_gedcom
 from .criteres import VERDICTS_POSITIFS, criteres_concordants
 from .modele import Faits, Mariage, Personne, Proche
 from .noms import chercher_meme_nom, normaliser, trouver_noms_partages
@@ -16,4 +17,5 @@ __all__ = [
     "normaliser", "trouver_noms_partages", "chercher_meme_nom",
     "comparer", "afficher_comparaison", "RapportComplet",
     "criteres_concordants", "VERDICTS_POSITIFS",
+    "evenements_gedcom", "Evenement",
 ]

@@ -10,7 +10,8 @@ personne, on télécharge tout un arbre en quelques requêtes `IN (...)`.
 Étapes (`charger_groupe`) :
   1. regrouper les identifiants demandés par arbre
   2. pour chaque arbre, lire en lot : nom + sexe (+ prénoms, nom de famille,
-     autres noms), faits datés, mariages, puis
+     autres noms), faits datés (année ; date complète + lieu depuis le GEDCOM
+     brut), mariages, puis
      les liens (parents, enfants, conjoints)
   3. charger d'un coup les proches (on garde leur nom + année de naissance)
   4. assembler le tout en objets `Personne`
@@ -30,6 +31,7 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator
 
 import pandas as pd
 
+from ..commun.gedcom import Evenement, evenements_gedcom
 from ..commun.modele import Faits, Mariage, Personne, Proche
 from ..commun.noms import normaliser
 from .db import run_query, t
@@ -209,6 +211,26 @@ def _faits_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str
     return resultat
 
 
+def _gedcom_lot(
+    conn: Connection, tree_id: int, ids: Iterable[str], table: str = "individuals",
+    faits: tuple[str, ...] = FAITS_PERSONNE,
+) -> dict[str, dict[str, Evenement]]:
+    """Date complète + lieu des événements, lus dans le GEDCOM brut.
+
+    `table` = "individuals" (i_gedcom) ou "families" (f_gedcom).
+    Renvoie {id: {fait: {date, lieu}}}."""
+    prefixe = {"individuals": "i", "families": "f"}[table]
+
+    def sql_pour(marques, morceau):
+        return f"""
+            SELECT {prefixe}_id AS id, {prefixe}_gedcom AS gedcom
+            FROM `{t(table)}`
+            WHERE {prefixe}_file = %s AND {prefixe}_id IN ({marques})
+        """, (tree_id, *morceau)
+    df = _lire_par_morceaux(conn, sql_pour, ids)
+    return _grouper_premier(df, "id", lambda r: evenements_gedcom(r.gedcom, faits))
+
+
 def _parents_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
     """Xrefs des parents pour un lot. Renvoie {xref: [xref_parent, ...]}."""
     def sql_pour(marques, morceau):
@@ -305,7 +327,7 @@ def _annees_mariage_lot(conn: Connection, tree_id: int, fam_ids: Iterable[str]) 
 
 def _mariages_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[Mariage]]:
     """Mariages (année + conjoint) pour un lot.
-    Renvoie {xref: [{annee, conjoint, conjoint_norm, conjoint_id}, ...]}."""
+    Renvoie {xref: [{annee, conjoint, conjoint_norm, conjoint_id, date, lieu}, ...]}."""
     def sql_pour(marques, morceau):
         return f"""
             SELECT sp.l_from AS xref,
@@ -321,17 +343,22 @@ def _mariages_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[
     if familles.empty:
         return {}
 
-    annees = _annees_mariage_lot(conn, tree_id, familles["fam"].dropna().unique().tolist())
+    fam_ids = familles["fam"].dropna().unique().tolist()
+    annees = _annees_mariage_lot(conn, tree_id, fam_ids)
+    evenements = _gedcom_lot(conn, tree_id, fam_ids, table="families", faits=("MARR",))
     noms = _noms_lot(conn, tree_id, familles["conjoint_id"].dropna().unique().tolist())
 
     resultat: dict[str, list[Mariage]] = {}
     for r in familles.itertuples():
+        marr = evenements.get(r.fam, {}).get("MARR", {})
         conjoint = (noms.get(r.conjoint_id) or "").strip() or None
         resultat.setdefault(r.xref, []).append({
             "annee": annees.get(r.fam),
             "conjoint": conjoint,
             "conjoint_norm": normaliser(conjoint) if conjoint else None,
             "conjoint_id": _xref_ou_none(r.conjoint_id),
+            "date": marr.get("date"),
+            "lieu": marr.get("lieu"),
         })
     return resultat
 
@@ -343,6 +370,7 @@ def _charger_arbre(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict
     base = _base_lot(conn, tree_id, xrefs)
     tous_noms = _autres_noms_lot(conn, tree_id, xrefs)
     faits = _faits_lot(conn, tree_id, xrefs)
+    evenements = _gedcom_lot(conn, tree_id, xrefs)
     mariages = _mariages_lot(conn, tree_id, xrefs)
     # charger les liens comme xrefs
     liens = {
@@ -374,6 +402,8 @@ def _charger_arbre(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict
             prenoms=prenoms,
             nom_famille=nom_famille,
             noms_alternatifs=_noms_alternatifs(nom, tous_noms.get(xref, [])),
+            dates={f: e["date"] for f, e in evenements.get(xref, {}).items() if e["date"]},
+            lieux={f: e["lieu"] for f, e in evenements.get(xref, {}).items() if e["lieu"]},
         )
         for xref, (nom, sexe, prenoms, nom_famille) in base.items()
     }

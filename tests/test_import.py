@@ -18,6 +18,7 @@ MODULES = [
     "genealogie_acadienne.commun.noms",
     "genealogie_acadienne.commun.comparaison",
     "genealogie_acadienne.commun.criteres",
+    "genealogie_acadienne.commun.gedcom",
     "genealogie_acadienne.donnees.db",
     "genealogie_acadienne.donnees.noms",
     "genealogie_acadienne.donnees.personnes",
