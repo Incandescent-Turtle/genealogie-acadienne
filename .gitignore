@@ -3,3 +3,7 @@ __pycache__/
 .env
 .vscode
 /temp
+*.egg-info/
+build/
+dist/
+.pytest_cache/

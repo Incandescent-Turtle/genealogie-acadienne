@@ -17,7 +17,7 @@ import sys
 
 import pandas as pd
 
-from db import get_connection, load_env_file, run_query, t
+from ..donnees.db import get_connection, load_env_file, run_query, t
 
 FICHIER_SORTIE = "rapports/statistiques.md"
 JOURS_PAR_AN = 365.25

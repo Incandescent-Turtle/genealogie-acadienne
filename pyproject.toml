@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genealogie-acadienne"
+version = "0.1.0"
+description = "Trouver les personnes en double entre les arbres d'une base WebTrees."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=2.2",
+    "PyMySQL>=1.1",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+genealogie-apparier = "genealogie_acadienne.pipeline.apparier_personnes:main"
+genealogie-statistiques = "genealogie_acadienne.pipeline.statistiques:main"
+genealogie-erreurs = "genealogie_acadienne.pipeline.trouver_erreurs:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

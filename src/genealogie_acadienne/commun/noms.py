@@ -4,11 +4,13 @@ Trouver les noms partagés entre plusieurs arbres.
 Première étape du pipeline : repérer les personnes qui pourraient être des doublons parce qu'elles portent le même nom dans des arbres différents.
 
 Étapes :
-  1. `charger_personnes` lit tous les noms (table `name`) et normalise chacun
+  1. `donnees.noms.charger_personnes` lit tous les noms (table `name`), écarte
+     les arbres de `ARBRES_IGNORES` et normalise chacun avec `normaliser`
      (minuscules, sans accents ni ponctuation) ;
-  2. on écarte les arbres de `ARBRES_IGNORES` ;
-  3. `trouver_noms_partages` regroupe par nom normalisé et garde les noms
+  2. `trouver_noms_partages` regroupe par nom normalisé et garde les noms
      présents dans au moins 2 arbres (chaque groupe reçoit un `groupe_id`).
+
+Module pur : il travaille sur un DataFrame déjà chargé, sans base de données.
 
 Ici, on rapproche les noms de façon EXACTE (après normalisation) : deux graphies différentes du même nom ne se rencontrent pas encore.
 
@@ -21,33 +23,11 @@ Ici, on rapproche les noms de façon EXACTE (après normalisation) : deux graphi
 
 from __future__ import annotations
 
-import os
-import sys
 import unicodedata
 from typing import TYPE_CHECKING
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from db import load_env_file, run_query, t
-
 if TYPE_CHECKING:
     import pandas as pd
-    from pymysql.connections import Connection
-
-# Arbres à exclure de toutes les recherches. La casse est ignorée.
-ARBRES_IGNORES = ["FAMILLES.ACADIENNES", "BABIN_TEST", "MY_PROJECT"]
-
-def ids_arbres_ignores(
-    conn: Connection | None = None, noms: list[str] = ARBRES_IGNORES
-) -> list[int]:
-    """Renvoie les `gedcom_id` des arbres à ignorer, d'après leur nom."""
-    if not noms:
-        return []
-    g = run_query("SELECT gedcom_id, gedcom_name FROM " + t("gedcom"), conn=conn)
-    # comparaison insensible à la casse : la base peut stocker « babin_test »
-    noms_norm = {n.casefold() for n in noms}
-    masque = g["gedcom_name"].str.casefold().isin(noms_norm)
-    return g.loc[masque, "gedcom_id"].tolist()
 
 
 def normaliser(texte: str | None) -> str:
@@ -60,30 +40,6 @@ def normaliser(texte: str | None) -> str:
     texte = "".join(c if c.isalnum() or c.isspace() else " " for c in texte)
     return " ".join(texte.split())
 
-
-def charger_personnes(conn: Connection | None = None) -> pd.DataFrame:
-    """Charge toutes les personnes : arbre, identifiant, nom complet."""
-    df = run_query(
-        f"""
-        SELECT n_file AS tree_id,
-               n_id   AS person_id,
-               TRIM(REPLACE(n_full, '/', '')) AS nom_complet
-        FROM `{t('name')}`
-        WHERE n_type = 'NAME'
-        """,
-        conn=conn,
-    )
-    df = df.drop_duplicates(subset=["tree_id", "person_id"]).reset_index(drop=True)
-
-    ignores = ids_arbres_ignores(conn)
-    if ignores:
-        avant = len(df)
-        df = df[~df["tree_id"].isin(ignores)].reset_index(drop=True)
-        print(f"{avant - len(df)} personnes ignorées "
-              f"(arbres {', '.join(ARBRES_IGNORES)}).")
-
-    df["nom_norm"] = df["nom_complet"].map(normaliser)
-    return df
 
 def chercher_meme_nom(df: pd.DataFrame, nom_complet: str, tree_id: int) -> pd.DataFrame:
     """Renvoie les personnes de l'arbre `tree_id` au nom exactement identique."""
@@ -113,22 +69,3 @@ def trouver_noms_partages(
     colonnes = ["tree_id", "person_id", "nom_complet", "nom_norm",
                 "n_personnes", "n_arbres", "groupe_id"]
     return partages[colonnes].reset_index(drop=True)
-
-def exporter_resume(partages: pd.DataFrame, fichier: str = "temp/partages_resume.csv") -> None:
-    """Écrit un résumé : une ligne par nom partagé (groupe)."""
-    resume = (partages.groupby("groupe_id")
-              .agg(nom_norm=("nom_norm", "first"),
-                   n_personnes=("n_personnes", "first"),
-                   n_arbres=("n_arbres", "first"))
-              .reset_index())
-    resume.to_csv(fichier, index=False, encoding="utf-8")
-    print(f"{len(resume)} noms partagés -> {fichier}")
-
-
-if __name__ == "__main__":
-    load_env_file(override=True)
-    df = charger_personnes()
-    print(f"{len(df)} personnes chargées.\n")
-
-    partages = trouver_noms_partages(df)
-    exporter_resume(partages)

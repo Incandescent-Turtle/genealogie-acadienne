@@ -1,15 +1,15 @@
 """
 Comparer deux personnes pour décider si c'est la même.
 
-Une fois que `correspondances_noms.py` a trouvé des gens du même nom, on les
-compare ici. Chaque métrique est une petite fonction `comparer_xxx(a, b)` qui
+Une fois que `noms.py` a trouvé des gens du même nom, on les
+compare ici. Module pur : aucune base de données, aucune entrée/sortie. Chaque métrique est une petite fonction `comparer_xxx(a, b)` qui
 regarde une seule chose et renvoie un rapport (valeurs + `verdict`).
 
 Les 7 métriques : naissance, baptême, décès, sépulture, mariage (nom du conjoint +
 année), ascendants, et descendants (et le 8ème, période de vie estimée).
 
 Étapes :
-  1. les personnes sont déjà chargées en objets `Personne` (`personnes.py`) ;
+  1. les personnes sont déjà chargées en objets `Personne` (`modele.py`) ;
   2. `comparer(a, b)` lance toutes les métriques et renvoie un rapport par
      métrique
   3. on compare les proches par npm normalisé et les dates par année
@@ -26,20 +26,9 @@ Pour les parents et les enfants, on ne regarde que le nom et l'année de naissan
 
 from __future__ import annotations
 
-import os
-import sys
+from typing import Any, Literal, TypedDict
 
-# `db.py` est dans le dossier parent (scripts/) : on l'ajoute au chemin d'import pour pouvoir lancer ce fichier directement.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
-
-from db import get_connection, load_env_file
-
-from personnes import Mariage, Personne, Proche, charger_personne
-
-if TYPE_CHECKING:
-    from pymysql.connections import Connection
+from .modele import Mariage, Personne, Proche
 
 ECART_GENERATION = 28  # âge typique d'un parent à la naissance d'un enfant
 ECART_MARIAGE = 28     # années entre une naissance et le mariage
@@ -319,15 +308,6 @@ def comparer(a: Personne, b: Personne) -> RapportComplet:
     return resultats
 
 
-def comparer_ids(
-    conn: Connection, tree_a: int, id_a: str, tree_b: int, id_b: str
-) -> tuple[Personne, Personne, RapportComplet]:
-    """Charge deux personnes par leurs identifiants et les compare."""
-    a = charger_personne(conn, tree_a, id_a)
-    b = charger_personne(conn, tree_b, id_b)
-    return a, b, comparer(a, b)
-
-
 def _intervalle_txt(bornes: tuple[int | None, int | None] | None) -> str:
     """Debut-Fin ou juste le debut si c'est la même année."""
     if not bornes:
@@ -363,13 +343,3 @@ def afficher_comparaison(a: Personne, b: Personne, rapport: RapportComplet) -> N
     print(f"B : {b}\n")
     for nom, r in rapport.items():
         print(f"  {nom:16s} [{r['verdict']:14s}] {_detail_comparaison(nom, r)}")
-
-
-if __name__ == "__main__":
-    load_env_file(override=True)
-    conn = get_connection()
-    try:
-        a, b, rapport = comparer_ids(conn, 34, "I0669", 6, "1590")
-    finally:
-        conn.close()
-    afficher_comparaison(a, b, rapport)

@@ -4,9 +4,9 @@ Le script principal de la tâche "trouver_doublons", le point d'entrée.
 Ce script, il utilse les trois autres modules, et à la fin il enregistre les résultats dans la base de données.
 
 Étapes :
-  1. charger tous les noms et repérer ceux partagés entre arbres (`correspondances_noms.py`)
-  2. télécharger en lot les personnes concernées (`personnes.py`)
-  3. comparer chaque paire du même nom (`comparer_personnes.py`)
+  1. charger tous les noms et repérer ceux partagés entre arbres (`donnees/noms.py`, `commun/noms.py`)
+  2. télécharger en lot les personnes concernées (`donnees/personnes.py`)
+  3. comparer chaque paire du même nom (`commun/comparaison.py`, `commun/criteres.py`)
   4. enregistrer dans la table `person_comparisons` les paires ayant au moins `min_criteres` critères concordants (1 par défaut).
 
 On garde toutes les données de chaque paire retenue afin de :
@@ -27,18 +27,16 @@ On n'a pas besion de modifications pour faire des millions de comparaisons -- le
 
 from __future__ import annotations
 
-import os
-import sys
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from itertools import combinations
 from typing import TYPE_CHECKING, Any, Iterator
 
-from comparer_personnes import RapportComplet, comparer
-from correspondances_noms import charger_personnes, trouver_noms_partages
-from db import execute, get_connection, load_env_file, t
-from personnes import Personne, charger_groupe
+from ..commun.comparaison import RapportComplet, comparer
+from ..commun.criteres import criteres_concordants
+from ..commun.modele import Personne
+from ..commun.noms import trouver_noms_partages
+from ..donnees.db import execute, get_connection, load_env_file
+from ..donnees.noms import charger_personnes
+from ..donnees.personnes import charger_groupe
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -49,18 +47,7 @@ Paire = tuple[Any, Any]
 # Une ligne prête pour l'INSERT (valeurs dans l'ordre de `COLONNES`).
 LigneComparaison = tuple[Any, ...]
 
-# Pour chaque métrique, les verdicts qui comptent comme une "concordance".
-# (voir comparer_personnes.py pour la liste des verdicts possibles)
-VERDICTS_POSITIFS = {
-    "naissance": {"identique", "proche"},
-    "bapteme": {"identique", "proche"},
-    "deces": {"identique", "proche"},
-    "sepulture": {"identique", "proche"},
-    "mariage": {"identique", "proche", "meme_conjoint"},
-    # "periode_estimee": {"chevauchement", "proche"}, # ça aide à idenifier, mais c'est créé par rapport aux dates connues, qui sont déjà les autres métriques.
-    "ascendants": {"communs"},
-    "descendants": {"communs"},
-}
+# Les verdicts qui comptent comme une "concordance" : voir commun/criteres.py.
 
 # Table où l'on enregistre les comparaisons
 TABLE_COMPARAISONS = "person_comparisons"
@@ -82,14 +69,6 @@ COLONNES = [
 
 # Colonnes qui identifient la paire
 CLES = ("tree_id_a", "person_id_a", "tree_id_b", "person_id_b")
-
-def criteres_concordants(rapport: RapportComplet) -> list[str]:
-    """Liste des métriques où les deux personnes concordent."""
-    concordants = []
-    for nom, r in rapport.items():
-        if r["verdict"] in VERDICTS_POSITIFS.get(nom, set()):
-            concordants.append(nom)
-    return concordants
 
 
 def creer_table(conn: Connection) -> None:

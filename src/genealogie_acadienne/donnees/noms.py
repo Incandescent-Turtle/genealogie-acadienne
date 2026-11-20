@@ -1,0 +1,58 @@
+"""
+Charger tous les noms de personnes depuis la base (table `name`).
+
+Les arbres de `ARBRES_IGNORES` sont écartés, et chaque nom est normalisé avec
+`commun.noms.normaliser`. Le regroupement des noms partagés est dans
+`commun/noms.py`.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ..commun.noms import normaliser
+from .db import run_query, t
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from pymysql.connections import Connection
+
+# Arbres à exclure de toutes les recherches. La casse est ignorée.
+ARBRES_IGNORES = ["FAMILLES.ACADIENNES", "BABIN_TEST", "MY_PROJECT"]
+
+def ids_arbres_ignores(
+    conn: Connection | None = None, noms: list[str] = ARBRES_IGNORES
+) -> list[int]:
+    """Renvoie les `gedcom_id` des arbres à ignorer, d'après leur nom."""
+    if not noms:
+        return []
+    g = run_query("SELECT gedcom_id, gedcom_name FROM " + t("gedcom"), conn=conn)
+    # comparaison insensible à la casse : la base peut stocker « babin_test »
+    noms_norm = {n.casefold() for n in noms}
+    masque = g["gedcom_name"].str.casefold().isin(noms_norm)
+    return g.loc[masque, "gedcom_id"].tolist()
+
+
+def charger_personnes(conn: Connection | None = None) -> pd.DataFrame:
+    """Charge toutes les personnes : arbre, identifiant, nom complet."""
+    df = run_query(
+        f"""
+        SELECT n_file AS tree_id,
+               n_id   AS person_id,
+               TRIM(REPLACE(n_full, '/', '')) AS nom_complet
+        FROM `{t('name')}`
+        WHERE n_type = 'NAME'
+        """,
+        conn=conn,
+    )
+    df = df.drop_duplicates(subset=["tree_id", "person_id"]).reset_index(drop=True)
+
+    ignores = ids_arbres_ignores(conn)
+    if ignores:
+        avant = len(df)
+        df = df[~df["tree_id"].isin(ignores)].reset_index(drop=True)
+        print(f"{avant - len(df)} personnes ignorées "
+              f"(arbres {', '.join(ARBRES_IGNORES)}).")
+
+    df["nom_norm"] = df["nom_complet"].map(normaliser)
+    return df

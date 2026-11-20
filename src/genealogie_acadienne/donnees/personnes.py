@@ -1,8 +1,8 @@
 """
-Modèle `Personne` et chargement depuis la base de données.
+Chargement des `Personne` depuis la base de données.
 
-Fournit l'objet `Personne` (nom, sexe, faits datés, mariages, parents, enfants,
-conjoints) utilisé par le reste du pipeline.
+Construit les objets `Personne` (voir `commun/modele.py` : nom, sexe, faits
+datés, mariages, parents, enfants, conjoints) utilisés par le reste du pipeline.
 
 Le chargement se fait EN LOT pour rester rapide : au lieu d'une requête par
 personne, on télécharge tout un arbre en quelques requêtes `IN (...)`.
@@ -25,17 +25,13 @@ Grace aux lots, ce script est très rapide. On pourrait faire millions de compar
 
 from __future__ import annotations
 
-import os
-import sys
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, TypedDict
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator
 
 import pandas as pd
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from correspondances_noms import normaliser
-from db import run_query, t
+from ..commun.modele import Faits, Mariage, Personne, Proche
+from ..commun.noms import normaliser
+from .db import run_query, t
 
 if TYPE_CHECKING:
     from pymysql.connections import Connection
@@ -45,41 +41,6 @@ FAITS_PERSONNE = ("BIRT", "BAPM", "CHR", "DEAT", "BURI")
 
 # Nombre d'identifiants par requête `IN (...)`
 TAILLE_LOT_SQL = 500
-
-# --- Types des structures de données ---------------------------------------
-# Faits datés d'une personne : {"BIRT": 1700, "DEAT": 1750, ...} (année ou None).
-Faits = dict[str, "int | None"]
-
-
-class Mariage(TypedDict):
-    """Un mariage : année (ou None) et nom du conjoint (normalisé)."""
-    annee: int | None
-    conjoint: str | None
-    conjoint_norm: str | None
-
-
-class Proche(TypedDict):
-    """Un proche (parent, enfant, conjoint) réduit au nom + année de naissance."""
-    nom: str
-    nom_norm: str
-    naissance: int | None
-
-
-@dataclass
-class Personne:
-    tree_id: int
-    person_id: str
-    nom_complet: str
-    nom_norm: str
-    sexe: str
-    faits: Faits
-    mariages: list[Mariage] = field(default_factory=list)
-    parents: list[Proche] = field(default_factory=list)
-    enfants: list[Proche] = field(default_factory=list)
-    conjoints: list[Proche] = field(default_factory=list)
-
-    def __str__(self):
-        return (f"{self.nom_complet} (arbre {self.tree_id}, id {self.person_id})")
 
 def _annee(valeur: Any) -> int | None:
     """Convertit une année SQL en int ou None."""

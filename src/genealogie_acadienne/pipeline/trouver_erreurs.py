@@ -22,7 +22,7 @@ import datetime
 
 import pandas as pd
 
-from db import get_connection, load_env_file, run_query, t
+from ..donnees.db import get_connection, load_env_file, run_query, t
 
 ANNEE_COURANTE = datetime.date.today().year
 FICHIER_SORTIE = "erreurs_a_corriger.txt"
