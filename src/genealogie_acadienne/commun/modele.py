@@ -45,6 +45,13 @@ class Proche(TypedDict):
 
 @dataclass
 class Personne:
+    """Une personne d'un arbre.
+
+    `nom_complet` est le premier nom principal (NAME) tel quel ; `prenoms` et
+    `nom_famille` en sont les parties (GIVN / SURN, vides si inconnues).
+    `noms_alternatifs` contient les autres noms enregistrés (autres NAME,
+    _AKA, _MARNM...), sans le nom principal.
+    """
     tree_id: int
     person_id: str
     nom_complet: str
@@ -55,6 +62,9 @@ class Personne:
     parents: list[Proche] = field(default_factory=list)
     enfants: list[Proche] = field(default_factory=list)
     conjoints: list[Proche] = field(default_factory=list)
+    prenoms: str = ""
+    nom_famille: str = ""
+    noms_alternatifs: list[str] = field(default_factory=list)
 
     def __str__(self):
         return (f"{self.nom_complet} (arbre {self.tree_id}, id {self.person_id})")

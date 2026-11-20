@@ -41,3 +41,17 @@ def test_charger_personne_introuvable(monkeypatch):
     monkeypatch.setattr(donnees_personnes, "run_query", fausse_base.faux_run_query)
     with pytest.raises(ValueError):
         donnees_personnes.charger_personne(fausse_base.creer(), 1, "I99")
+
+
+def test_parties_du_nom_et_noms_alternatifs(gens):
+    marie = gens[(1, "I2")]
+    assert (marie.nom_complet, marie.prenoms, marie.nom_famille) == ("Marie Léger", "Marie", "Léger")
+    assert marie.noms_alternatifs == ["Marie Leger dite Rose", "Marie Babin"]
+    assert gens[(1, "I1")].noms_alternatifs == []
+
+
+def test_parties_inconnues_vides():
+    """`@P.N.` / `@N.M.` (inconnu dans WebTrees) deviennent des chaînes vides."""
+    from genealogie_acadienne.donnees.personnes import _partie_nom
+    assert _partie_nom("@P.N.") == "" and _partie_nom(None) == ""
+    assert _partie_nom(" Jean  Baptiste ") == "Jean Baptiste"

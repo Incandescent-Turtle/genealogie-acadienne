@@ -9,7 +9,8 @@ personne, on télécharge tout un arbre en quelques requêtes `IN (...)`.
 
 Étapes (`charger_groupe`) :
   1. regrouper les identifiants demandés par arbre
-  2. pour chaque arbre, lire en lot : nom + sexe, faits datés, mariages, puis
+  2. pour chaque arbre, lire en lot : nom + sexe (+ prénoms, nom de famille,
+     autres noms), faits datés, mariages, puis
      les liens (parents, enfants, conjoints)
   3. charger d'un coup les proches (on garde leur nom + année de naissance)
   4. assembler le tout en objets `Personne`
@@ -38,6 +39,9 @@ if TYPE_CHECKING:
 
 # Faits datés qui concernent une personne
 FAITS_PERSONNE = ("BIRT", "BAPM", "CHR", "DEAT", "BURI")
+
+# Valeurs que WebTrees met dans n_givn / n_surn quand la partie est inconnue
+NOMS_INCONNUS = {"@P.N.", "@N.M."}
 
 # Nombre d'identifiants par requête `IN (...)`
 TAILLE_LOT_SQL = 500
@@ -126,20 +130,65 @@ def _grouper_xrefs(df: pd.DataFrame, cle: str, colonnes: tuple[str, ...]) -> dic
     return {k: _nettoyer_xrefs(v) for k, v in resultat.items()}
 
 
-def _base_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, tuple[str, str]]:
-    """Nom complet + sexe pour un lot. Renvoie {xref: (nom, sexe)}."""
+def _partie_nom(valeur: Any) -> str:
+    """Une partie de nom (GIVN / SURN) nettoyée ; "" si vide ou inconnue."""
+    if valeur is None or (isinstance(valeur, float) and pd.isna(valeur)):
+        return ""
+    valeur = " ".join(str(valeur).replace("/", " ").split())
+    return "" if valeur in NOMS_INCONNUS else valeur
+
+
+def _base_lot(
+    conn: Connection, tree_id: int, xrefs: Iterable[str]
+) -> dict[str, tuple[str, str, str, str]]:
+    """Nom complet, sexe, prénoms et nom de famille pour un lot.
+    Renvoie {xref: (nom, sexe, prenoms, nom_famille)} (premier NAME, par n_num)."""
     def sql_pour(marques, morceau):
         return f"""
             SELECT n.n_id AS xref,
                    TRIM(REPLACE(n.n_full, '/', '')) AS nom,
-                   i.i_sex AS sexe
+                   i.i_sex AS sexe,
+                   n.n_givn AS givn,
+                   n.n_surn AS surn
             FROM `{t('name')}` n
             JOIN `{t('individuals')}` i
               ON n.n_file = i.i_file AND n.n_id = i.i_id
             WHERE n.n_file = %s AND n.n_type = 'NAME' AND n.n_id IN ({marques})
+            ORDER BY n.n_id, n.n_num
         """, (tree_id, *morceau)
     df = _lire_par_morceaux(conn, sql_pour, xrefs)
-    return _grouper_premier(df, "xref", lambda r: (r.nom, r.sexe))
+    return _grouper_premier(
+        df, "xref", lambda r: (r.nom, r.sexe, _partie_nom(r.givn), _partie_nom(r.surn)))
+
+
+def _autres_noms_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
+    """Tous les noms d'un lot, dans l'ordre (NAME d'abord, puis par n_num).
+    Renvoie {xref: [nom, ...]} ; le premier est le nom principal."""
+    def sql_pour(marques, morceau):
+        return f"""
+            SELECT n_id AS xref, TRIM(REPLACE(n_full, '/', '')) AS nom
+            FROM `{t('name')}`
+            WHERE n_file = %s AND n_id IN ({marques})
+            ORDER BY n_id, CASE WHEN n_type = 'NAME' THEN 0 ELSE 1 END, n_num
+        """, (tree_id, *morceau)
+    df = _lire_par_morceaux(conn, sql_pour, xrefs)
+    resultat: dict[str, list[str]] = {}
+    for r in df.itertuples():
+        resultat.setdefault(r.xref, []).append(" ".join(str(r.nom or "").split()))
+    return resultat
+
+
+def _noms_alternatifs(nom: str, tous: list[str]) -> list[str]:
+    """Les autres noms d'une personne : sans le nom principal, sans doublons
+    (après normalisation), dans l'ordre."""
+    vus = {normaliser(nom)}
+    autres = []
+    for n in tous:
+        cle = normaliser(n)
+        if cle and cle not in vus:
+            vus.add(cle)
+            autres.append(n)
+    return autres
 
 
 def _faits_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, Faits]:
@@ -292,6 +341,7 @@ def _charger_arbre(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict
     Renvoie {xref: Personne}."""
     xrefs = _nettoyer_xrefs(xrefs)
     base = _base_lot(conn, tree_id, xrefs)
+    tous_noms = _autres_noms_lot(conn, tree_id, xrefs)
     faits = _faits_lot(conn, tree_id, xrefs)
     mariages = _mariages_lot(conn, tree_id, xrefs)
     # charger les liens comme xrefs
@@ -321,8 +371,11 @@ def _charger_arbre(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict
             parents=resoudre("parents", xref),
             enfants=resoudre("enfants", xref),
             conjoints=resoudre("conjoints", xref),
+            prenoms=prenoms,
+            nom_famille=nom_famille,
+            noms_alternatifs=_noms_alternatifs(nom, tous_noms.get(xref, [])),
         )
-        for xref, (nom, sexe) in base.items()
+        for xref, (nom, sexe, prenoms, nom_famille) in base.items()
     }
 
 

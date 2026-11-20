@@ -37,6 +37,13 @@ INDIVIDUS = [
     ("I6", "M", "Joseph /Babin/", "Joseph", "Babin", 1752),
     ("I7", "F", "Cécile /Thibodeau/", "Cécile", "Thibodeau", None),
 ]
+# Autres noms : (id, n_num, n_type, nom complet, prénoms, nom de famille)
+AUTRES_NOMS = [
+    ("I2", 1, "NAME", "Marie /Leger/ dite Rose", "Marie", "Leger"),
+    ("I2", 2, "_MARNM", "Marie /Babin/", "Marie", "Babin"),
+    ("I2", 3, "_AKA", "MARIE /LÉGER/", "MARIE", "LÉGER"),   # même nom : ignoré
+    ("I7", 1, "NAME", "/Thibodeau/", "@P.N.", "Thibodeau"),
+]
 FAMILLES = [("F1", "I1", "I2"), ("F2", "I3", "I5"), ("F3", None, "I7")]
 ENFANTS = [("F1", "I3"), ("F1", "I4"), ("F2", "I6")]
 MARIAGES = [("F1", 1725), ("F2", 1750)]
@@ -55,6 +62,9 @@ def creer(arbre: int = 1) -> sqlite3.Connection:
         if naissance:
             conn.execute("INSERT INTO wt_dates VALUES (?, ?, 'BIRT', ?)",
                          (arbre, xref, naissance))
+    for xref, num, type_, nom, givn, surn in AUTRES_NOMS:
+        conn.execute("INSERT INTO wt_name VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (arbre, xref, num, type_, nom, givn, surn))
     for fam, husb, wife in FAMILLES:
         conn.execute("INSERT INTO wt_families VALUES (?, ?, ?, ?)", (fam, arbre, husb, wife))
         for conjoint in (husb, wife):
