@@ -12,7 +12,8 @@ API publique :
   - connexion   : DBConfig, get_connection, load_env_file, set_table_prefix
   - modèle      : Personne, Mariage, Proche, Faits
   - chargement  : charger_personnes (noms -> DataFrame), charger_groupe, charger_personne
-  - noms        : normaliser, trouver_noms_partages, chercher_meme_nom
+  - noms        : normaliser, trouver_noms_partages, chercher_meme_nom,
+                  alias_dit, tokens_prenoms, trouver_paires (par prénoms partagés)
   - comparaison : comparer (deux Personne en mémoire), criteres_concordants, VERDICTS_POSITIFS
   - GEDCOM      : evenements_gedcom (date + lieu des événements d'un GEDCOM brut)
 
@@ -33,12 +34,15 @@ from .commun import (
     Personne,
     Proche,
     RapportComplet,
+    alias_dit,
     chercher_meme_nom,
     comparer,
     criteres_concordants,
     evenements_gedcom,
     normaliser,
+    tokens_prenoms,
     trouver_noms_partages,
+    trouver_paires,
 )
 
 if TYPE_CHECKING:
@@ -94,4 +98,7 @@ __all__ = [
     "VERDICTS_POSITIFS",
     "evenements_gedcom",
     "Evenement",
+    "alias_dit",
+    "tokens_prenoms",
+    "trouver_paires",
 ]

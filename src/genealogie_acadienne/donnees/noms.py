@@ -34,14 +34,16 @@ def ids_arbres_ignores(
 
 
 def charger_personnes(conn: Connection | None = None) -> pd.DataFrame:
-    """Charge toutes les personnes : arbre, identifiant, nom complet."""
+    """Charge toutes les personnes : arbre, identifiant, nom complet, nom de famille."""
     df = run_query(
         f"""
         SELECT n_file AS tree_id,
                n_id   AS person_id,
-               TRIM(REPLACE(n_full, '/', '')) AS nom_complet
+               TRIM(REPLACE(n_full, '/', '')) AS nom_complet,
+               n_surn AS nom_famille
         FROM `{t('name')}`
         WHERE n_type = 'NAME'
+        ORDER BY n_file, n_id, n_num
         """,
         conn=conn,
     )
@@ -55,4 +57,6 @@ def charger_personnes(conn: Connection | None = None) -> pd.DataFrame:
               f"(arbres {', '.join(ARBRES_IGNORES)}).")
 
     df["nom_norm"] = df["nom_complet"].map(normaliser)
+    # WebTrees met « @N.M. » quand le nom de famille est inconnu
+    df["nom_famille"] = df["nom_famille"].where(df["nom_famille"] != "@N.M.", None)
     return df

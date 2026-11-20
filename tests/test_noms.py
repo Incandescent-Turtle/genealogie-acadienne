@@ -58,6 +58,7 @@ def test_charger_personnes_avec_fausse_base(monkeypatch):
             "tree_id": [1, 2, 2],
             "person_id": ["I1", "I2", "I2"],   # doublon (tree_id, person_id)
             "nom_complet": ["Jean Babin", "Élise Comeau", "Élise Comeau"],
+            "nom_famille": ["Babin", "@N.M.", "@N.M."],
         })
 
     monkeypatch.setattr(donnees_noms, "run_query", faux_run_query)
@@ -65,3 +66,4 @@ def test_charger_personnes_avec_fausse_base(monkeypatch):
     df = donnees_noms.charger_personnes(conn=object())
 
     assert df[["tree_id", "person_id", "nom_norm"]].values.tolist() == [[2, "I2", "elise comeau"]]
+    assert df["nom_famille"].isna().all()  # « @N.M. » = inconnu

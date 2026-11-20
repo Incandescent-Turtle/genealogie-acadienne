@@ -10,7 +10,14 @@ from .comparaison import RapportComplet, afficher_comparaison, comparer
 from .gedcom import Evenement, evenements_gedcom
 from .criteres import VERDICTS_POSITIFS, criteres_concordants
 from .modele import Faits, Mariage, Personne, Proche
-from .noms import chercher_meme_nom, normaliser, trouver_noms_partages
+from .noms import (
+    alias_dit,
+    chercher_meme_nom,
+    normaliser,
+    tokens_prenoms,
+    trouver_noms_partages,
+    trouver_paires,
+)
 
 __all__ = [
     "Personne", "Mariage", "Proche", "Faits",
@@ -18,4 +25,5 @@ __all__ = [
     "comparer", "afficher_comparaison", "RapportComplet",
     "criteres_concordants", "VERDICTS_POSITIFS",
     "evenements_gedcom", "Evenement",
+    "alias_dit", "tokens_prenoms", "trouver_paires",
 ]
