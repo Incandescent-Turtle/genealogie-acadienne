@@ -17,7 +17,7 @@ import sys
 
 import pandas as pd
 
-from db import get_connection, run_query, t
+from db import get_connection, load_env_file, run_query, t
 
 FICHIER_SORTIE = "rapports/statistiques.md"
 JOURS_PAR_AN = 365.25
@@ -204,6 +204,7 @@ def resumer(nom, df, unite, bornes):
 
 
 def main():
+    load_env_file(override=True)
     conn = get_connection()
     try:
         sorties = []

@@ -22,7 +22,7 @@ import datetime
 
 import pandas as pd
 
-from db import get_connection, run_query, t
+from db import get_connection, load_env_file, run_query, t
 
 ANNEE_COURANTE = datetime.date.today().year
 FICHIER_SORTIE = "erreurs_a_corriger.txt"
@@ -161,6 +161,7 @@ def noms_avec_chiffres(conn):
 # TODO / À FAIRE : Créer une fonction pour créer les liens de web pour aller sur le page web de la personne
 
 def main():
+    load_env_file(override=True)
     conn = get_connection()
 
     verifications = [

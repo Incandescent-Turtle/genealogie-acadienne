@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING, Any, Iterator
 
 from comparer_personnes import RapportComplet, comparer
 from correspondances_noms import charger_personnes, trouver_noms_partages
-from db import execute, get_connection, t
+from db import execute, get_connection, load_env_file, t
 from personnes import Personne, charger_groupe
 
 if TYPE_CHECKING:
@@ -289,6 +289,7 @@ def apparier(conn: Connection, min_criteres: int = 1, taille_lot: int = 500) -> 
     return enregistres
 
 def main() -> None:
+    load_env_file(override=True)
     conn = get_connection()
     try:
         apparier(conn, min_criteres=1, taille_lot=500)

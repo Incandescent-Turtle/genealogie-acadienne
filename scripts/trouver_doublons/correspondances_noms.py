@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from db import run_query, t
+from db import load_env_file, run_query, t
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -126,6 +126,7 @@ def exporter_resume(partages: pd.DataFrame, fichier: str = "temp/partages_resume
 
 
 if __name__ == "__main__":
+    load_env_file(override=True)
     df = charger_personnes()
     print(f"{len(df)} personnes chargées.\n")
 

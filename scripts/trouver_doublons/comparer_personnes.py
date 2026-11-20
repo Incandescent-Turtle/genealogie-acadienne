@@ -34,7 +34,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
-from db import get_connection
+from db import get_connection, load_env_file
 
 from personnes import Mariage, Personne, Proche, charger_personne
 
@@ -366,6 +366,7 @@ def afficher_comparaison(a: Personne, b: Personne, rapport: RapportComplet) -> N
 
 
 if __name__ == "__main__":
+    load_env_file(override=True)
     conn = get_connection()
     try:
         a, b, rapport = comparer_ids(conn, 34, "I0669", 6, "1590")
