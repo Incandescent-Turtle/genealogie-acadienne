@@ -69,6 +69,24 @@ Sans `DBConfig`, `get_connection()` lit les variables d'environnement
 préfixe des tables). `load_env_file()` charge un `.env` si on le souhaite.
 `comparer(a, b)` fonctionne sur des objets `Personne` en mémoire, sans base.
 
+### Le modèle `Personne`
+
+| Champ | Contenu |
+| --- | --- |
+| `tree_id`, `person_id` | arbre (`gedcom_id`) et identifiant (xref) |
+| `nom_complet`, `nom_norm` | premier nom principal (NAME), et sa forme normalisée |
+| `prenoms`, `nom_famille` | parties du nom (GIVN / SURN), vides si inconnues |
+| `noms_alternatifs` | autres noms (autres NAME, `_AKA`, `_MARNM`...) |
+| `sexe` | `M`, `F` ou `U` |
+| `faits` | année par fait : `BIRT`, `BAPM`, `CHR`, `DEAT`, `BURI` |
+| `dates`, `lieux` | date complète (texte GEDCOM, ex. `ABT 12 MAR 1745`) et lieu, par fait |
+| `mariages` | `{annee, conjoint, conjoint_norm, conjoint_id, date, lieu}` |
+| `parents`, `enfants`, `conjoints` | `Proche` : `{nom, nom_norm, naissance, person_id}` |
+
+`person_id` (dans `Proche`) et `conjoint_id` (dans `Mariage`) relient les
+personnes d'un même arbre : on peut reconstruire le graphe familial à partir
+des `Personne` chargées.
+
 ## Configuration
 
 Copier `.env.example` vers `.env` et remplir les identifiants de la base
@@ -95,7 +113,8 @@ vont dans un seul sens : `commun` ← `donnees` ← `pipeline`.
 | `__init__.py`                      | API publique du paquet (connexion, `Personne`, chargement, noms, comparaison).                |
 | **`commun/`**                      | **Fonctions pures** : aucune base, aucune entrée/sortie, ni pandas ni pymysql à l'import.    |
 | `commun/modele.py`                 | Modèle `Personne` (+ `Mariage`, `Proche`, `Faits`).                                           |
-| `commun/noms.py`                   | `normaliser`, et regroupement des noms partagés entre arbres (`trouver_noms_partages`).       |
+| `commun/gedcom.py`                 | `evenements_gedcom` : date complète + lieu des événements, lus dans le GEDCOM brut.          |
+| `commun/noms.py`                   | `normaliser`, noms partagés entre arbres (`trouver_noms_partages`), alias « dit » (`alias_dit`) et appariement par prénoms partagés (`trouver_paires`). |
 | `commun/comparaison.py`            | Compare **deux** personnes et renvoie un rapport (métriques + verdicts).                      |
 | `commun/criteres.py`               | Verdicts qui comptent comme concordance, et `criteres_concordants`.                           |
 | **`donnees/`**                     | **Accès à la base** WebTrees.                                                                 |
@@ -150,6 +169,8 @@ enregistre chaque paire ayant au moins un critère concordant.
 Maintenant, ces scripts marchent pour trouver les paires d'individus qui sont peut-être les même, basé sur les critère de naissance, décès, sepulture, batpême, enfants, parents, et mariages. Les scripts sont très vite, et peut examiner une base de 150.000 individus, trouver 600.000 paires qui partagent un nom, les analyser, et présenter celles qui partagent les critères -- en moins d'une minute.
 
 On cherche les individus qui ont exactement les mêmes noms. On ne cherche pas les variantes orthographiques ni les homonymes. 
+
+`trouver_paires` (dans `commun/noms.py`) ajoute un appariement par prénoms partagés, alias « dit » compris (ex. « Marie Louise Comeaux » ~ « Louise Comeaux ») ; il n'est pas encore branché dans `apparier_personnes.py`.
 
 ### L'Amélioration de trouver les paires
 La première chose qu'on pourrait faire, c'est inclure les variantes orthographiques dans nos comparaisons. Les homonymes, les erreurs de saiser, l'abscense ou l'ajout d'un deuxième nom, etc.
