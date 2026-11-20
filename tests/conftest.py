@@ -26,13 +26,18 @@ def interdire_reseau(monkeypatch):
         monkeypatch.delenv(var, raising=False)
 
 
-def proche(nom: str, naissance: int | None = None) -> dict:
-    return {"nom": nom, "nom_norm": normaliser(nom), "naissance": naissance}
+def proche(nom: str, naissance: int | None = None, person_id: str | None = None) -> dict:
+    p = {"nom": nom, "nom_norm": normaliser(nom), "naissance": naissance}
+    if person_id is not None:
+        p["person_id"] = person_id
+    return p
 
 
-def mariage(conjoint: str | None, annee: int | None = None) -> dict:
+def mariage(conjoint: str | None, annee: int | None = None,
+            conjoint_id: str | None = None) -> dict:
     return {"annee": annee, "conjoint": conjoint,
-            "conjoint_norm": normaliser(conjoint) if conjoint else None}
+            "conjoint_norm": normaliser(conjoint) if conjoint else None,
+            "conjoint_id": conjoint_id}
 
 
 def personne(nom: str = "Jean Babin", tree_id: int = 1, person_id: str = "I1",

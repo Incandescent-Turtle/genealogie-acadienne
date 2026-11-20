@@ -49,6 +49,14 @@ def _annee(valeur: Any) -> int | None:
     return int(valeur)
 
 
+def _xref_ou_none(valeur: Any) -> str | None:
+    """Un xref SQL (str) ou None s'il est vide / NULL / NaN."""
+    if valeur is None or (isinstance(valeur, float) and pd.isna(valeur)):
+        return None
+    valeur = str(valeur).strip()
+    return valeur or None
+
+
 def _nettoyer_xrefs(xrefs: Iterable[str]) -> list[str]:
     """Enlève les vides et les doublons en gardant l'ordre."""
     vus, propres = set(), []
@@ -229,6 +237,7 @@ def _naissances_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dic
     df = _lire_par_morceaux(conn, sql_pour, xrefs)
     return _grouper_premier(df, "xref", lambda r: {
         "nom": r.nom, "nom_norm": normaliser(r.nom), "naissance": _annee(r.naissance),
+        "person_id": str(r.xref),
     })
 
 
@@ -247,7 +256,7 @@ def _annees_mariage_lot(conn: Connection, tree_id: int, fam_ids: Iterable[str]) 
 
 def _mariages_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[Mariage]]:
     """Mariages (année + conjoint) pour un lot.
-    Renvoie {xref: [{annee, conjoint, conjoint_norm}, ...]}."""
+    Renvoie {xref: [{annee, conjoint, conjoint_norm, conjoint_id}, ...]}."""
     def sql_pour(marques, morceau):
         return f"""
             SELECT sp.l_from AS xref,
@@ -273,6 +282,7 @@ def _mariages_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[
             "annee": annees.get(r.fam),
             "conjoint": conjoint,
             "conjoint_norm": normaliser(conjoint) if conjoint else None,
+            "conjoint_id": _xref_ou_none(r.conjoint_id),
         })
     return resultat
 

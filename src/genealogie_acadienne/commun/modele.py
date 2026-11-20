@@ -9,7 +9,7 @@ Module pur (bibliothèque standard seulement) : on peut construire des `Personne
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 # --- Types des structures de données ---------------------------------------
 # Faits datés d'une personne : {"BIRT": 1700, "DEAT": 1750, ...} (année ou None).
@@ -17,17 +17,30 @@ Faits = dict[str, "int | None"]
 
 
 class Mariage(TypedDict):
-    """Un mariage : année (ou None) et nom du conjoint (normalisé)."""
+    """Un mariage : année (ou None) et nom du conjoint (normalisé).
+
+    `conjoint_id` est l'identifiant (xref) du conjoint dans le même arbre, ou
+    None s'il est inconnu. Il est rempli par le chargement depuis la base ;
+    il peut manquer dans un dictionnaire construit à la main.
+    """
     annee: int | None
     conjoint: str | None
     conjoint_norm: str | None
+    conjoint_id: NotRequired[str | None]
 
 
 class Proche(TypedDict):
-    """Un proche (parent, enfant, conjoint) réduit au nom + année de naissance."""
+    """Un proche (parent, enfant, conjoint) réduit au nom + année de naissance.
+
+    `person_id` est l'identifiant (xref) du proche dans le même arbre : il
+    permet de relier les personnes entre elles (graphe familial). Il est rempli
+    par le chargement depuis la base ; il peut manquer dans un dictionnaire
+    construit à la main.
+    """
     nom: str
     nom_norm: str
     naissance: int | None
+    person_id: NotRequired[str]
 
 
 @dataclass
