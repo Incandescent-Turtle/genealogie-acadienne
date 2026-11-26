@@ -12,6 +12,10 @@ WebTrees (ex. `person_comparisons`) sont exportées. `tables=` / `exclure=`
 permettent de choisir autrement.
 
 Les dates et heures (`timestamp`, `datetime`) sont lues en UTC.
+
+Relire avec `lire_table(dossier, "wt_individuals")` : les entiers gardent leur
+type même avec des valeurs vides (`Int64` et `<NA>`, au lieu de `float64` et `NaN`
+avec un simple `pd.read_parquet`).
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pymysql.cursors
@@ -193,3 +198,16 @@ def exporter_base(
     (dossier / FICHIER_MANIFESTE).write_text(json.dumps(manifeste, indent=2, ensure_ascii=False) + "\n")
     return manifeste
 
+
+def lire_table(dossier: str | Path, table: str, colonnes: Sequence[str] | None = None) -> pd.DataFrame:
+    """Relit une table exportée en gardant les entiers entiers, même avec des vides.
+
+    `pd.read_parquet` seul change une colonne d'entiers avec des valeurs vides en
+    `float64` (12 -> 12.0) ; ici elle devient `Int64` avec `<NA>`.
+    """
+    chemin = Path(dossier) / f"{table}.parquet"
+    if not chemin.is_file():
+        presentes = sorted(p.stem for p in Path(dossier).glob("*.parquet"))
+        raise FileNotFoundError(f"Pas de table {table!r} dans {dossier} (présentes : {', '.join(presentes)}).")
+    return pd.read_parquet(chemin, columns=list(colonnes) if colonnes else None,
+                           dtype_backend="numpy_nullable")

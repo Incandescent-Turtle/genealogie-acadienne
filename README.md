@@ -192,9 +192,14 @@ uv run genealogie-export-sql chemin/dump.sql chemin/parquet/
   WebTrees ne sont jamais exportées par défaut (`TABLES_EXCLUES`). `--tables` et
   `--exclure` pour choisir autrement, `--ecraser` pour remplacer un export.
 
+Relire avec `lire_table` plutôt que `pd.read_parquet` seul : une colonne d'entiers
+avec des valeurs vides (ex. `wt_place_location.parent_id`) reste en entiers
+(`Int64`, `<NA>`) au lieu de devenir des décimaux (`12.0`, `NaN`).
+
 ```python
-import pandas as pd
-individus = pd.read_parquet("chemin/parquet/wt_individuals.parquet")
+from genealogie_acadienne.donnees import lire_table
+lieux = lire_table("chemin/parquet", "wt_place_location")
+individus = lire_table("chemin/parquet", "wt_individuals", colonnes=["i_id", "i_file", "i_sex"])
 ```
 
 ## Les Prochaines Étapes

@@ -20,6 +20,7 @@ from genealogie_acadienne.donnees.export_parquet import (
     choisir_tables,
     est_exclue,
     exporter_base,
+    lire_table,
     type_arrow,
 )
 from genealogie_acadienne.donnees.mariadb_local import version_portable
@@ -165,3 +166,21 @@ def test_versions_portables():
     assert all(u.endswith(".zip") for u in windows[0])
     assert version_portable("Darwin", "arm64") is None
 
+
+def test_lire_table_garde_les_entiers(tmp_path):
+    exporter_base(connexion(), tmp_path)
+    lieux = lire_table(tmp_path, "wt_place_location")
+    assert str(lieux["id"].dtype) == "Int64"
+    assert str(lieux["latitude"].dtype) == "Float64"
+    assert lieux["latitude"].isna().tolist() == [False, True]
+
+    # entier avec une valeur vide : reste Int64 (pd.read_parquet seul donnerait float64)
+    pq.write_table(pa.table({"parent_id": pa.array([1, None, 3], pa.int64())}), tmp_path / "t.parquet")
+    parents = lire_table(tmp_path, "t")
+    assert str(parents["parent_id"].dtype) == "Int64"
+    assert parents["parent_id"].isna().tolist() == [False, True, False]
+    assert parents["parent_id"].dropna().astype(str).tolist() == ["1", "3"]  # pas "1.0"
+
+    assert lire_table(tmp_path, "wt_individuals", colonnes=["i_id"]).columns.tolist() == ["i_id"]
+    with pytest.raises(FileNotFoundError, match="wt_absente"):
+        lire_table(tmp_path, "wt_absente")
