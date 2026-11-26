@@ -15,14 +15,19 @@ Les valeurs qui n'ont pas de sens, par exemple :
 
 Ce script NE MODIFIE PAS la base de données. Il ne fait que lire.
 
+    genealogie-erreurs                     # base MariaDB (.env)
+    genealogie-erreurs --parquet DOSSIER   # export Parquet
+
 Ce script n'est pas fini (03/07/2026).
 """
 
+import argparse
 import datetime
 
 import pandas as pd
 
-from ..donnees.db import get_connection, load_env_file, run_query, t
+from ..donnees.db import run_query, t
+from ..donnees.source_parquet import ajouter_option_parquet, ouvrir_connexion
 
 ANNEE_COURANTE = datetime.date.today().year
 FICHIER_SORTIE = "erreurs_a_corriger.txt"
@@ -160,9 +165,10 @@ def noms_avec_chiffres(conn):
 # TODO / À FAIRE : Créer une fonction pour vérifier si une personne est née avant ses parents
 # TODO / À FAIRE : Créer une fonction pour créer les liens de web pour aller sur le page web de la personne
 
-def main():
-    load_env_file(override=True)
-    conn = get_connection()
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Trouver les erreurs de saisie.")
+    ajouter_option_parquet(parser)
+    args = parser.parse_args(argv)
 
     verifications = [
         ("Lieux ~ dates", lieux_ressemblant_a_des_dates),
@@ -173,22 +179,21 @@ def main():
         ("Noms ~ chiffres", noms_avec_chiffres),
     ]
 
-    resultats = {}
-    resume = []
-    for nom_onglet, fonction in verifications:
-        print(f"Vérification : {nom_onglet} ...")
+    with ouvrir_connexion(args.parquet) as conn:
+        resultats = {}
+        resume = []
+        for nom_onglet, fonction in verifications:
+            print(f"Vérification : {nom_onglet} ...")
         
-        try:
-            df = fonction(conn)
-        except Exception as e: 
-            print(f"Erreur pendant '{nom_onglet}': {e}")
-            df = _vide()
+            try:
+                df = fonction(conn)
+            except Exception as e: 
+                print(f"Erreur pendant '{nom_onglet}': {e}")
+                df = _vide()
             
-        resultats[nom_onglet] = df
-        resume.append({"verification": nom_onglet, "nb_problemes": len(df)})
-        print(f"   -> {len(df)} cas trouvés")
-
-    conn.close()
+            resultats[nom_onglet] = df
+            resume.append({"verification": nom_onglet, "nb_problemes": len(df)})
+            print(f"   -> {len(df)} cas trouvés")
 
     df_resume = pd.DataFrame(resume)
     print("\n" + df_resume.to_string(index=False))

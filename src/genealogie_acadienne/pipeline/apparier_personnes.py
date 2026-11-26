@@ -9,6 +9,12 @@ Ce script, il utilse les trois autres modules, et à la fin il enregistre les r�
   3. comparer chaque paire du même nom (`commun/comparaison.py`, `commun/criteres.py`)
   4. enregistrer dans la table `person_comparisons` les paires ayant au moins `min_criteres` critères concordants (1 par défaut).
 
+    genealogie-apparier                                          # base MariaDB (.env) -> table
+    genealogie-apparier --parquet DOSSIER --sortie paires.parquet  # export Parquet -> fichier
+
+Avec `--parquet`, la base est une copie en mémoire : les comparaisons vont dans un
+fichier Parquet (`--sortie`, mêmes colonnes que la table), l'export n'est pas modifié.
+
 On garde toutes les données de chaque paire retenue afin de :
   - se rappeler qu'elle a été traitée
   - voir ce que les deux personnes ont en commun
@@ -27,20 +33,26 @@ On n'a pas besion de modifications pour faire des millions de comparaisons -- le
 
 from __future__ import annotations
 
+import argparse
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from itertools import combinations
-from typing import TYPE_CHECKING, Any, Iterator
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import pandas as pd
 
 from ..commun.comparaison import RapportComplet, comparer
 from ..commun.criteres import criteres_concordants
 from ..commun.modele import Personne
 from ..commun.noms import trouver_noms_partages
-from ..donnees.db import execute, get_connection, load_env_file
+from ..donnees.db import execute
 from ..donnees.noms import charger_personnes
 from ..donnees.personnes import charger_groupe
+from ..donnees.source_parquet import ajouter_option_parquet, ouvrir_connexion
 
 if TYPE_CHECKING:
-    import pandas as pd
-    from pymysql.connections import Connection
+    from ..donnees.db import Connexion
 
 # Une paire de personnes à comparer, représentée par leurs lignes de DataFrame.
 Paire = tuple[Any, Any]
@@ -71,7 +83,7 @@ COLONNES = [
 CLES = ("tree_id_a", "person_id_a", "tree_id_b", "person_id_b")
 
 
-def creer_table(conn: Connection) -> None:
+def creer_table(conn: Connexion) -> None:
     """Crée la table des comparaisons si elle n'existe pas encore.
 
     La clé unique sur la paire permet d'éviter les doublons
@@ -179,7 +191,7 @@ def compter_paires(groupe: pd.DataFrame) -> int:
     return total - memes
 
 
-def enregistrer_lot(conn: Connection, sql_insert: str, lot: list[LigneComparaison]) -> int:
+def enregistrer_lot(conn: Connexion, sql_insert: str, lot: list[LigneComparaison]) -> int:
     """Enregistre un lot de comparaisons puis le vide.
     Renvoie le nombre de lignes enregistrées."""
     if not lot:
@@ -216,7 +228,22 @@ def comparer_groupe(
     return lignes
 
 
-def apparier(conn: Connection, min_criteres: int = 1, taille_lot: int = 500) -> int:
+def ecrire_comparaisons(lignes: list[LigneComparaison], fichier: str | Path) -> None:
+    """Écrit les comparaisons dans un fichier Parquet (colonnes de la table)."""
+    df = pd.DataFrame(lignes, columns=COLONNES)
+    textes = {"person_id_a", "person_id_b", "criteria"}
+    for c in COLONNES:
+        if c not in textes and not c.endswith("_verdict"):  # les autres sont des entiers
+            df[c] = df[c].astype("Int64")
+    df["comparison_date"] = pd.Timestamp(datetime.now(UTC))
+    Path(fichier).parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(fichier, index=False)
+
+
+def apparier(
+    conn: Connexion, min_criteres: int = 1, taille_lot: int = 500,
+    sortie: str | Path | None = None,
+) -> int:
     """Importer les noms partagés et les apparier selon nos métriques.
 
     On télécharge d'un coup toutes les personnes concernées (en lots). Ça pourrait être un probleme si on avait des millions de personnes dans la base.
@@ -224,10 +251,25 @@ def apparier(conn: Connection, min_criteres: int = 1, taille_lot: int = 500) -> 
     On n'enregistre que les paires ayant au moins `min_criteres` critères
     concordants.
 
+    Sans `sortie`, les comparaisons vont dans la table `person_comparisons` ;
+    avec `sortie`, dans ce fichier Parquet (la base n'est pas modifiée).
+
     Renvoie le nombre de comparaisons enregistrées.
     """
-    creer_table(conn)
-    sql_insert = _sql_insert()
+    gardees: list[LigneComparaison] = []
+    if sortie is None:
+        creer_table(conn)
+        sql_insert = _sql_insert()
+
+        def enregistrer(lot: list[LigneComparaison]) -> int:
+            return enregistrer_lot(conn, sql_insert, lot)
+    else:
+        def enregistrer(lot: list[LigneComparaison]) -> int:
+            gardees.extend(lot)
+            n = len(lot)
+            lot.clear()
+            return n
+    destination = f"`{TABLE_COMPARAISONS}`" if sortie is None else str(sortie)
 
     # charger les noms partagés
     df = charger_personnes(conn)
@@ -236,8 +278,10 @@ def apparier(conn: Connection, min_criteres: int = 1, taille_lot: int = 500) -> 
     groupes = partages.groupby("groupe_id")
     total = sum(compter_paires(g) for _, g in groupes)
     print(f"{groupes.ngroups} noms partagés, {total} comparaisons à faire "
-          f"(enregistrées dans `{TABLE_COMPARAISONS}`).")
+          f"(enregistrées dans {destination}).")
     if total == 0:
+        if sortie is not None:
+            ecrire_comparaisons([], sortie)
         return 0
 
     # télécharger d'un coup toutes les personnes concernées
@@ -254,7 +298,7 @@ def apparier(conn: Connection, min_criteres: int = 1, taille_lot: int = 500) -> 
         faites += compter_paires(groupe)
 
         if len(lot) >= taille_lot:
-            enregistres += enregistrer_lot(conn, sql_insert, lot)
+            enregistres += enregistrer(lot)
 
         # avancement à chaque fois que le pourcentage change
         pct = round(100 * faites / total)
@@ -263,17 +307,23 @@ def apparier(conn: Connection, min_criteres: int = 1, taille_lot: int = 500) -> 
             print(f"... {pct}% ({faites}/{total}), "
                   f"{enregistres + len(lot)} enregistrées")
 
-    enregistres += enregistrer_lot(conn, sql_insert, lot)
-    print(f"\nTerminé : {enregistres} comparaisons enregistrées dans `{TABLE_COMPARAISONS}`.")
+    enregistres += enregistrer(lot)
+    if sortie is not None:
+        ecrire_comparaisons(gardees, sortie)
+    print(f"\nTerminé : {enregistres} comparaisons enregistrées dans {destination}.")
     return enregistres
 
-def main() -> None:
-    load_env_file(override=True)
-    conn = get_connection()
-    try:
-        apparier(conn, min_criteres=1, taille_lot=500)
-    finally:
-        conn.close()
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Apparier les personnes du même nom.")
+    ajouter_option_parquet(parser)
+    parser.add_argument("--sortie", metavar="FICHIER",
+                        help="fichier Parquet des comparaisons (obligatoire avec --parquet)")
+    args = parser.parse_args(argv)
+    if args.parquet and not args.sortie:
+        parser.error("--parquet demande --sortie (l'export n'est pas modifié)")
+    with ouvrir_connexion(args.parquet) as conn:
+        apparier(conn, min_criteres=1, taille_lot=500, sortie=args.sortie)
 
 if __name__ == "__main__":
     main()

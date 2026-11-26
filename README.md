@@ -125,10 +125,10 @@ vont dans un seul sens : `commun` ← `donnees` ← `pipeline`.
 | `donnees/personnes.py`             | Charge des `Personne` depuis la base (une personne, ou des milliers en lots).                 |
 | `donnees/instantane.py`            | Instantanés Parquet : exporter toute la base une fois (`instantane_depuis_base`), puis relire les `Personne` sans base. |
 | `donnees/export_parquet.py`        | Exporte les tables brutes d'une base en Parquet (une table par fichier), sans les tables d'utilisateurs. |
+| `donnees/source_parquet.py`        | Relit l'export Parquet avec les mêmes chargeurs que la base (SQLite en mémoire). |
 | `donnees/mariadb_local.py`         | Serveur MariaDB temporaire et privé (version portable téléchargée au besoin) pour importer un dump. |
 | **`pipeline/`**                    | **Les tâches de ce dépôt** (points d'entrée).                                                 |
-| `pipeline/apparier_personnes.py`   | Trouve les doublons et enregistre les paires dans `person_comparisons`.                       |
-| `pipeline/noms_partages.py`        | Exporte un résumé des noms partagés (`temp/partages_resume.csv`).                             |
+| `pipeline/apparier_personnes.py`   | Trouve les doublons et enregistre les paires dans `person_comparisons` (ou un fichier Parquet). |
 | `pipeline/comparer_paire.py`       | Charge et compare une paire précise (exemple / débogage).                                     |
 | `pipeline/statistiques.py`         | Statistiques générales (durée de vie, âges, etc.). Lecture seule.                             |
 | `pipeline/trouver_erreurs.py`      | Repère les erreurs de saisie (dates impossibles, etc.). Lecture seule.                        |
@@ -142,25 +142,29 @@ vont dans un seul sens : `commun` ← `donnees` ← `pipeline`.
 
 ## Exécution
 
-Après `uv sync`, avec le `.env` configuré, depuis la racine du dépôt (les
-fichiers de sortie sont écrits dans le dossier courant). Préfixer chaque commande
-par `uv run` (ou activer `.venv`) :
+Après `uv sync`, depuis la racine du dépôt (les fichiers de sortie sont écrits
+dans le dossier courant). Préfixer chaque commande par `uv run` (ou activer `.venv`).
+
+Chaque script lit soit la base MariaDB (par défaut, avec le `.env` configuré), soit
+un export Parquet avec `--parquet DOSSIER` (voir plus bas) : mêmes requêtes, mêmes
+résultats, sans serveur.
 
 ```bash
 # Trouver les doublons -> écrit dans la table `person_comparisons`
 genealogie-apparier
+# depuis l'export Parquet -> fichier (l'export n'est jamais modifié)
+genealogie-apparier --parquet chemin/parquet --sortie rapports/paires.parquet
 # ou : python -m genealogie_acadienne.pipeline.apparier_personnes
 
 # Statistiques (lecture seule) -> rapports/statistiques.md
-genealogie-statistiques
+genealogie-statistiques                     # ou : --parquet chemin/parquet
 # ou : python -m genealogie_acadienne.pipeline.statistiques
 
 # Détection d'erreurs de saisie (lecture seule) -> erreurs_a_corriger.txt
-genealogie-erreurs
+genealogie-erreurs                          # ou : --parquet chemin/parquet
 # ou : python -m genealogie_acadienne.pipeline.trouver_erreurs
 
 # Autres tâches
-python -m genealogie_acadienne.pipeline.noms_partages    # -> temp/partages_resume.csv
 python -m genealogie_acadienne.pipeline.comparer_paire   # compare une paire d'exemple
 
 # Tests (aucune base nécessaire)
@@ -173,8 +177,8 @@ enregistre chaque paire ayant au moins un critère concordant.
 
 ### Convertir un dump `.sql` en Parquet
 
-Pour travailler sans base de données : on convertit une fois le dump, puis on lit
-les fichiers avec pandas ou DuckDB.
+Pour travailler sans base de données : on convertit une fois le dump, puis les
+scripts et les chargeurs lisent les fichiers (`--parquet`, `connexion_parquet`).
 
 ```bash
 uv run genealogie-export-sql chemin/dump.sql chemin/parquet/
@@ -200,6 +204,22 @@ avec des valeurs vides (ex. `wt_place_location.parent_id`) reste en entiers
 from genealogie_acadienne.donnees import lire_table
 lieux = lire_table("chemin/parquet", "wt_place_location")
 individus = lire_table("chemin/parquet", "wt_individuals", colonnes=["i_id", "i_file", "i_sex"])
+```
+
+### Charger des `Personne` depuis l'export Parquet
+
+L'export sert de copie hors ligne de la base : `connexion_parquet` copie les tables
+(`gedcom`, `individuals`, `name`, `families`, `link`, `dates`, `places` ; `tables=` pour
+d'autres) dans une base SQLite en mémoire (aucun serveur), et les chargeurs et scripts
+y exécutent les mêmes requêtes que sur MariaDB. `with ouvrir_connexion(parquet) as conn:`
+choisit l'export si on lui donne un dossier, sinon MariaDB (`.env`), et ferme la connexion.
+
+```python
+from genealogie_acadienne.donnees import charger_groupe, connexion_parquet, instantane_depuis_base
+
+conn = connexion_parquet("chemin/parquet")        # ou get_connection() pour la vraie base
+personnes = charger_groupe(conn, [(1, "I1")])
+instantane_depuis_base(conn, "chemin/instantane")  # toutes les Personne
 ```
 
 ## Les Prochaines Étapes

@@ -10,14 +10,18 @@ Statistiques générales (moyennes) sur la base WebTrees, séparées par sexe.
   - Nombre d'enfants par personne
 
 Ce script NE MODIFIE PAS la base de données. Il ne fait que lire.
+
+    genealogie-statistiques                     # base MariaDB (.env)
+    genealogie-statistiques --parquet DOSSIER   # export Parquet
 """
 
+import argparse
 import datetime
-import sys
 
 import pandas as pd
 
-from ..donnees.db import get_connection, load_env_file, run_query, t
+from ..donnees.db import run_query, t
+from ..donnees.source_parquet import ajouter_option_parquet, ouvrir_connexion
 
 FICHIER_SORTIE = "rapports/statistiques.md"
 JOURS_PAR_AN = 365.25
@@ -203,10 +207,11 @@ def resumer(nom, df, unite, bornes):
     return lignes
 
 
-def main():
-    load_env_file(override=True)
-    conn = get_connection()
-    try:
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Statistiques générales, par sexe.")
+    ajouter_option_parquet(parser)
+    args = parser.parse_args(argv)
+    with ouvrir_connexion(args.parquet) as conn:
         sorties = []
         for m in CRITERES:
             print(f"Calcul : {m['nom']} ...")
@@ -216,14 +221,12 @@ def main():
                 print(f"  Erreur : {e}")
                 df = pd.DataFrame(columns=["tree_id", "person_id", "sexe", "valeur"])
             sorties.append(resumer(m["nom"], df, m["unite"], (m["min"], m["max"])))
-    finally:
-        conn.close()
 
     date = datetime.date.today().isoformat()
     entete = [
         "# Statistiques généalogiques (par sexe)",
         "",
-        f"_Généré le {date} depuis la base WebTrees._",
+        f"_Généré le {date} depuis {'l’export ' + args.parquet if args.parquet else 'la base WebTrees'}._",
         "",
         "Les valeurs hors bornes plausibles sont écartées comme erreurs de saisie.",
     ]
