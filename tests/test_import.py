@@ -31,7 +31,6 @@ MODULES = [
     "genealogie_acadienne.donnees.personnes",
     "genealogie_acadienne.pipeline.apparier_personnes",
     "genealogie_acadienne.pipeline.comparer_paire",
-    "genealogie_acadienne.pipeline.noms_partages",
     "genealogie_acadienne.pipeline.statistiques",
     "genealogie_acadienne.pipeline.trouver_erreurs",
 ]
