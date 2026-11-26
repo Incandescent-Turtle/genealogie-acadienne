@@ -19,7 +19,10 @@ if TYPE_CHECKING:
     from .db import Connexion
 
 # Arbres à exclure de toutes les recherches. La casse est ignorée.
-ARBRES_IGNORES = ["FAMILLES.ACADIENNES", "BABIN_TEST", "MY_PROJECT"]
+# FAMILLES.ACADIENNES et BABIN_TEST sont des copies d'autres arbres, MY_PROJECT un essai.
+# HANKINSON a été réimporté le 2025-03-18 avec le fichier de HARRINGTON : il contient
+# les mêmes 203 personnes que HARRINGTON, qu'on garde.
+ARBRES_IGNORES = ["FAMILLES.ACADIENNES", "BABIN_TEST", "MY_PROJECT", "HANKINSON"]
 
 def ids_arbres_ignores(
     conn: Connexion | None = None, noms: list[str] = ARBRES_IGNORES
