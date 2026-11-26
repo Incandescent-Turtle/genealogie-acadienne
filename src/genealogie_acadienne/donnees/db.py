@@ -13,6 +13,7 @@ utilisée par les points d'entrée).
 from __future__ import annotations
 
 import os
+import sqlite3
 import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -23,6 +24,9 @@ import pymysql
 
 if TYPE_CHECKING:
     from pymysql.connections import Connection
+
+    # Connexion acceptée par les chargeurs : MariaDB, ou SQLite (`connexion_parquet`).
+    type Connexion = Connection | sqlite3.Connection
 
 PREFIXE_PAR_DEFAUT = "wt_"
 # Préfixe forcé par `set_table_prefix` (sinon DB_PREFIX, sinon "wt_").
@@ -107,7 +111,13 @@ def get_connection(config: DBConfig | None = None) -> Connection:
 
 
 def run_query(sql, params=None, conn=None):
-    """Exécute une requête SELECT et renvoie un DF de Pandas."""
+    """Exécute une requête SELECT et renvoie un DF de Pandas.
+
+    `conn` est une connexion MariaDB (pymysql) ou SQLite (`connexion_parquet`) :
+    les requêtes sont écrites avec des marques `%s`, changées en `?` pour SQLite.
+    """
+    if isinstance(conn, sqlite3.Connection):
+        return pd.read_sql(sql.replace("%s", "?"), conn, params=tuple(params or ()))
     fermer = False
     # Si une connexion n'est pas fournie, on en ouvre une et on la ferme à la fin.
     if conn is None:

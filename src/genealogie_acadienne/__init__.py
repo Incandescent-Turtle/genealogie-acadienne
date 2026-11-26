@@ -17,6 +17,8 @@ API publique :
   - comparaison : comparer (deux Personne en mémoire), criteres_concordants, VERDICTS_POSITIFS
   - GEDCOM      : evenements_gedcom (date + lieu des événements d'un GEDCOM brut)
   - instantanés : ecrire_instantane, lire_instantane, instantane_depuis_base (Parquet)
+  - export Parquet : connexion_parquet (mêmes chargeurs que la base),
+                   ouvrir_connexion (export Parquet ou MariaDB)
 Les autres outils (variantes, candidats, dates, voisinage, clonage, synthétique)
 sont dans `genealogie_acadienne.commun`.
 
@@ -60,12 +62,15 @@ if TYPE_CHECKING:
         ecrire_instantane,
         lire_instantane,
         instantane_depuis_base,
+        connexion_parquet,
+        ouvrir_connexion,
     )
 
 _DONNEES = {
     "DBConfig", "get_connection", "load_env_file", "set_table_prefix",
     "charger_personnes", "charger_groupe", "charger_personne",
     "ecrire_instantane", "lire_instantane", "instantane_depuis_base",
+    "connexion_parquet", "ouvrir_connexion",
 }
 
 
@@ -111,4 +116,6 @@ __all__ = [
     "ecrire_instantane",
     "lire_instantane",
     "instantane_depuis_base",
+    "connexion_parquet",
+    "ouvrir_connexion",
 ]

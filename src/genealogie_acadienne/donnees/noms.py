@@ -15,13 +15,14 @@ from .db import run_query, t
 
 if TYPE_CHECKING:
     import pandas as pd
-    from pymysql.connections import Connection
+
+    from .db import Connexion
 
 # Arbres à exclure de toutes les recherches. La casse est ignorée.
 ARBRES_IGNORES = ["FAMILLES.ACADIENNES", "BABIN_TEST", "MY_PROJECT"]
 
 def ids_arbres_ignores(
-    conn: Connection | None = None, noms: list[str] = ARBRES_IGNORES
+    conn: Connexion | None = None, noms: list[str] = ARBRES_IGNORES
 ) -> list[int]:
     """Renvoie les `gedcom_id` des arbres à ignorer, d'après leur nom."""
     if not noms:
@@ -33,7 +34,7 @@ def ids_arbres_ignores(
     return g.loc[masque, "gedcom_id"].tolist()
 
 
-def charger_personnes(conn: Connection | None = None) -> pd.DataFrame:
+def charger_personnes(conn: Connexion | None = None) -> pd.DataFrame:
     """Charge toutes les personnes : arbre, identifiant, nom complet, nom de famille."""
     df = run_query(
         f"""

@@ -31,7 +31,7 @@ from ..commun.modele import Personne
 from ..commun.voisinage import indexer, tous_les_liens
 
 if TYPE_CHECKING:
-    from pymysql.connections import Connection
+    from .db import Connexion
 
 FAITS = ("BIRT", "BAPM", "CHR", "DEAT", "BURI")
 LISTES = ("noms_alternatifs", "mariages", "parents", "enfants", "conjoints")
@@ -147,13 +147,18 @@ def lire_manifeste(dossier: str | Path) -> dict[str, Any]:
     return json.loads((Path(dossier) / FICHIER_MANIFESTE).read_text(encoding="utf-8"))
 
 
-def instantane_depuis_base(conn: Connection, dossier: str | Path) -> Path:
+def instantane_depuis_base(
+    conn: Connexion, dossier: str | Path, source: str = "base webtrees", **infos: Any
+) -> Path:
     """Charge TOUTES les personnes de la base (hors `ARBRES_IGNORES`) et les
-    écrit dans un instantané. Lecture seule sur la base."""
+    écrit dans un instantané. Lecture seule sur la base.
+
+    `conn` : MariaDB (`get_connection`) ou export Parquet (`connexion_parquet`).
+    `source` et `infos` vont dans le manifeste (voir `ecrire_instantane`)."""
     from .noms import charger_personnes
     from .personnes import charger_groupe
 
     noms = charger_personnes(conn)
     gens = noms[["tree_id", "person_id"]].drop_duplicates().itertuples(index=False)
     personnes = charger_groupe(conn, gens)
-    return ecrire_instantane(personnes.values(), dossier, source="base webtrees")
+    return ecrire_instantane(personnes.values(), dossier, source=source, **infos)

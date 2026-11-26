@@ -2,7 +2,7 @@
 
 Les requêtes du paquet sont écrites pour MySQL/MariaDB avec des marques `%s`.
 SQLite comprend la même syntaxe pour ce qu'on utilise (backticks, NULLIF,
-CASE, TRIM/REPLACE, sous-requêtes) : on remplace seulement `%s` par `?`.
+CASE, TRIM/REPLACE, sous-requêtes) ; `run_query` change `%s` en `?`.
 Aucune vraie base, aucun réseau.
 """
 
@@ -24,7 +24,9 @@ CREATE TABLE wt_name (n_file INTEGER, n_id TEXT, n_num INTEGER, n_type TEXT,
                       n_full TEXT, n_givn TEXT, n_surn TEXT);
 CREATE TABLE wt_families (f_id TEXT, f_file INTEGER, f_husb TEXT, f_wife TEXT, f_gedcom TEXT);
 CREATE TABLE wt_link (l_file INTEGER, l_from TEXT, l_type TEXT, l_to TEXT);
-CREATE TABLE wt_dates (d_file INTEGER, d_gid TEXT, d_fact TEXT, d_year INTEGER);
+CREATE TABLE wt_dates (d_file INTEGER, d_gid TEXT, d_fact TEXT, d_year INTEGER,
+                       d_mon INTEGER, d_day INTEGER, d_julianday1 INTEGER);
+CREATE TABLE wt_places (p_id INTEGER, p_file INTEGER, p_place TEXT);
 """
 
 INDIVIDUS = [
@@ -47,11 +49,23 @@ AUTRES_NOMS = [
 FAMILLES = [("F1", "I1", "I2"), ("F2", "I3", "I5"), ("F3", None, "I7")]
 ENFANTS = [("F1", "I3"), ("F1", "I4"), ("F2", "I6")]
 MARIAGES = [("F1", 1725), ("F2", 1750)]
+DECES = [("I5", 1790)]
+LIEUX = ["Port-Royal", "Grand-Pré", "Grand-Pré 1755"]   # le dernier : année dans un lieu
 # GEDCOM brut supplémentaire (dates complètes + lieux)
 GEDCOM_INDIVIDUS = {
     "I1": "1 BIRT\n2 DATE ABT 3 MAR 1700\n2 PLAC Port-Royal,\n3 CONC  Acadie\n1 DEAT Y",
 }
 GEDCOM_FAMILLES = {"F1": "1 MARR\n2 DATE 1725\n2 PLAC Grand-Pré"}
+
+
+def jour_julien(annee: int) -> int:
+    """Jour julien approximatif du 1er janvier (assez pour des écarts en années)."""
+    return int((annee + 4712) * 365.25)
+
+
+def _date(conn, arbre, gid, fait, annee):
+    conn.execute("INSERT INTO wt_dates VALUES (?, ?, ?, ?, 0, 0, ?)",
+                 (arbre, gid, fait, annee, jour_julien(annee)))
 
 
 def creer(arbre: int = 1) -> sqlite3.Connection:
@@ -66,8 +80,7 @@ def creer(arbre: int = 1) -> sqlite3.Connection:
         conn.execute("INSERT INTO wt_name VALUES (?, ?, 0, 'NAME', ?, ?, ?)",
                      (arbre, xref, nom, givn, surn))
         if naissance:
-            conn.execute("INSERT INTO wt_dates VALUES (?, ?, 'BIRT', ?)",
-                         (arbre, xref, naissance))
+            _date(conn, arbre, xref, "BIRT", naissance)
     for xref, num, type_, nom, givn, surn in AUTRES_NOMS:
         conn.execute("INSERT INTO wt_name VALUES (?, ?, ?, ?, ?, ?, ?)",
                      (arbre, xref, num, type_, nom, givn, surn))
@@ -84,11 +97,25 @@ def creer(arbre: int = 1) -> sqlite3.Connection:
         conn.execute("INSERT INTO wt_link VALUES (?, ?, 'FAMC', ?)", (arbre, enfant, fam))
         conn.execute("INSERT INTO wt_link VALUES (?, ?, 'CHIL', ?)", (arbre, fam, enfant))
     for fam, annee in MARIAGES:
-        conn.execute("INSERT INTO wt_dates VALUES (?, ?, 'MARR', ?)", (arbre, fam, annee))
+        _date(conn, arbre, fam, "MARR", annee)
+    for xref, annee in DECES:
+        _date(conn, arbre, xref, "DEAT", annee)
+    for i, lieu in enumerate(LIEUX, start=1):
+        conn.execute("INSERT INTO wt_places VALUES (?, ?, ?)", (i, arbre, lieu))
     conn.commit()
     return conn
 
 
-def faux_run_query(sql, params=None, conn=None):
-    """Remplace `db.run_query` : exécute la requête MySQL sur la base SQLite."""
-    return pd.read_sql(sql.replace("%s", "?"), conn, params=tuple(params or ()))
+def exporter(conn: sqlite3.Connection, dossier, copies: tuple[int, ...] = ()) -> None:
+    """Écrit les tables de la mini-base comme un export Parquet (une table par fichier).
+    `copies` : autres numéros d'arbre où copier l'arbre 1 (pour des paires entre arbres)."""
+    from pathlib import Path
+
+    dossier = Path(dossier)
+    dossier.mkdir(parents=True, exist_ok=True)
+    tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
+    for table in tables:
+        df = pd.read_sql(f"SELECT * FROM {table}", conn)
+        col = next(c for c in df.columns if c.endswith("_file") or c == "gedcom_id")
+        parts = [df] + [df.assign(**{col: n}) for n in copies]
+        pd.concat(parts, ignore_index=True).to_parquet(dossier / f"{table}.parquet")

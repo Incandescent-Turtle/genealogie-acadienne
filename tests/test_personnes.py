@@ -9,9 +9,8 @@ from genealogie_acadienne.donnees import personnes as donnees_personnes
 
 
 @pytest.fixture
-def gens(monkeypatch):
+def gens():
     """Toutes les personnes de la mini-base, chargées avec `charger_groupe`."""
-    monkeypatch.setattr(donnees_personnes, "run_query", fausse_base.faux_run_query)
     conn = fausse_base.creer()
     ids = [(1, x[0]) for x in fausse_base.INDIVIDUS]
     return donnees_personnes.charger_groupe(conn, ids)
@@ -38,8 +37,7 @@ def test_mariages_ont_l_identifiant_du_conjoint(gens):
     }]
 
 
-def test_charger_personne_introuvable(monkeypatch):
-    monkeypatch.setattr(donnees_personnes, "run_query", fausse_base.faux_run_query)
+def test_charger_personne_introuvable():
     with pytest.raises(ValueError):
         donnees_personnes.charger_personne(fausse_base.creer(), 1, "I99")
 

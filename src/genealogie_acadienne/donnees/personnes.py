@@ -37,7 +37,7 @@ from ..commun.noms import normaliser
 from .db import run_query, t
 
 if TYPE_CHECKING:
-    from pymysql.connections import Connection
+    from .db import Connexion
 
 # Faits datés qui concernent une personne
 FAITS_PERSONNE = ("BIRT", "BAPM", "CHR", "DEAT", "BURI")
@@ -79,7 +79,7 @@ def _morceaux(sequence: list[Any], taille: int = TAILLE_LOT_SQL) -> Iterator[lis
 
 
 def _lire_par_morceaux(
-    conn: Connection,
+    conn: Connexion,
     sql_pour: Callable[[str, tuple], tuple[str, tuple]],
     ids: Iterable[str],
 ) -> pd.DataFrame:
@@ -141,7 +141,7 @@ def _partie_nom(valeur: Any) -> str:
 
 
 def _base_lot(
-    conn: Connection, tree_id: int, xrefs: Iterable[str]
+    conn: Connexion, tree_id: int, xrefs: Iterable[str]
 ) -> dict[str, tuple[str, str, str, str]]:
     """Nom complet, sexe, prénoms et nom de famille pour un lot.
     Renvoie {xref: (nom, sexe, prenoms, nom_famille)} (premier NAME, par n_num)."""
@@ -163,7 +163,7 @@ def _base_lot(
         df, "xref", lambda r: (r.nom, r.sexe, _partie_nom(r.givn), _partie_nom(r.surn)))
 
 
-def _autres_noms_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
+def _autres_noms_lot(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
     """Tous les noms d'un lot, dans l'ordre (NAME d'abord, puis par n_num).
     Renvoie {xref: [nom, ...]} ; le premier est le nom principal."""
     def sql_pour(marques, morceau):
@@ -193,7 +193,7 @@ def _noms_alternatifs(nom: str, tous: list[str]) -> list[str]:
     return autres
 
 
-def _faits_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, Faits]:
+def _faits_lot(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, Faits]:
     """Faits datés pour un lot. Renvoie {xref: Fait}."""
     marques_faits = ",".join(["%s"] * len(FAITS_PERSONNE))
 
@@ -212,7 +212,7 @@ def _faits_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str
 
 
 def _gedcom_lot(
-    conn: Connection, tree_id: int, ids: Iterable[str], table: str = "individuals",
+    conn: Connexion, tree_id: int, ids: Iterable[str], table: str = "individuals",
     faits: tuple[str, ...] = FAITS_PERSONNE,
 ) -> dict[str, dict[str, Evenement]]:
     """Date complète + lieu des événements, lus dans le GEDCOM brut.
@@ -231,7 +231,7 @@ def _gedcom_lot(
     return _grouper_premier(df, "id", lambda r: evenements_gedcom(r.gedcom, faits))
 
 
-def _parents_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
+def _parents_lot(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
     """Xrefs des parents pour un lot. Renvoie {xref: [xref_parent, ...]}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -245,7 +245,7 @@ def _parents_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[s
     return _grouper_xrefs(df, "xref", ("pere", "mere"))
 
 
-def _enfants_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
+def _enfants_lot(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
     """Xrefs des enfants pour un lot. Renvoie {xref: [xref_enfant, ...]}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -259,7 +259,7 @@ def _enfants_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[s
     return _grouper_xrefs(df, "xref", ("enfant",))
 
 
-def _conjoints_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
+def _conjoints_lot(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[str]]:
     """Xrefs des conjoints pour un lot. Renvoie {xref: [xref_conjoint, ...]}."""
     ens = {str(x) for x in xrefs}
 
@@ -279,7 +279,7 @@ def _conjoints_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict
     return {x: _nettoyer_xrefs(v) for x, v in resultat.items()}
 
 
-def _noms_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, str]:
+def _noms_lot(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, str]:
     """Nom complet pour un lot d'identifiants. Renvoie {xref: nom}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -291,7 +291,7 @@ def _noms_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str,
     return _grouper_premier(df, "xref", lambda r: r.nom)
 
 
-def _naissances_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, Proche]:
+def _naissances_lot(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, Proche]:
     """Nom + année de naissance pour un lot (proches).
     Renvoie {xref: {nom, nom_norm, naissance}}."""
     def sql_pour(marques, morceau):
@@ -312,7 +312,7 @@ def _naissances_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dic
     })
 
 
-def _annees_mariage_lot(conn: Connection, tree_id: int, fam_ids: Iterable[str]) -> dict[str, int | None]:
+def _annees_mariage_lot(conn: Connexion, tree_id: int, fam_ids: Iterable[str]) -> dict[str, int | None]:
     """Année de mariage (MARR) pour un lot de familles. Renvoie {fam: annee}."""
     def sql_pour(marques, morceau):
         return f"""
@@ -325,7 +325,7 @@ def _annees_mariage_lot(conn: Connection, tree_id: int, fam_ids: Iterable[str]) 
     return _grouper_premier(df, "fam", lambda r: _annee(r.annee))
 
 
-def _mariages_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[Mariage]]:
+def _mariages_lot(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, list[Mariage]]:
     """Mariages (année + conjoint) pour un lot.
     Renvoie {xref: [{annee, conjoint, conjoint_norm, conjoint_id, date, lieu}, ...]}."""
     def sql_pour(marques, morceau):
@@ -363,7 +363,7 @@ def _mariages_lot(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[
     return resultat
 
 
-def _charger_arbre(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict[str, Personne]:
+def _charger_arbre(conn: Connexion, tree_id: int, xrefs: Iterable[str]) -> dict[str, Personne]:
     """Charge en lot toutes les personnes d'un même arbre. 
     Renvoie {xref: Personne}."""
     xrefs = _nettoyer_xrefs(xrefs)
@@ -410,7 +410,7 @@ def _charger_arbre(conn: Connection, tree_id: int, xrefs: Iterable[str]) -> dict
 
 
 def charger_groupe(
-    conn: Connection, gens: Iterable[tuple[Any, Any]]
+    conn: Connexion, gens: Iterable[tuple[Any, Any]]
 ) -> dict[tuple[int, str], Personne]:
     """Charge en lot toutes les personnes `gens` (itérable de `(tree_id, person_id)`).
 
@@ -428,7 +428,7 @@ def charger_groupe(
     return personnes
 
 
-def charger_personne(conn: Connection, tree_id: int, person_id: str) -> Personne:
+def charger_personne(conn: Connexion, tree_id: int, person_id: str) -> Personne:
     """Charge une seule personne (raccourci sur `charger_groupe`)."""
     personnes = charger_groupe(conn, [(tree_id, person_id)])
     cle = (int(tree_id), str(person_id))
