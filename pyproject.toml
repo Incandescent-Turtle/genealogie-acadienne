@@ -22,6 +22,7 @@ dev = ["pytest>=8"]
 genealogie-apparier = "genealogie_acadienne.pipeline.apparier_personnes:main"
 genealogie-statistiques = "genealogie_acadienne.pipeline.statistiques:main"
 genealogie-erreurs = "genealogie_acadienne.pipeline.trouver_erreurs:main"
+genealogie-export-sql = "genealogie_acadienne.pipeline.exporter_sql:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

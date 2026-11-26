@@ -124,12 +124,15 @@ vont dans un seul sens : `commun` ← `donnees` ← `pipeline`.
 | `donnees/noms.py`                  | Charge tous les noms (en écartant les arbres de `ARBRES_IGNORES`).                            |
 | `donnees/personnes.py`             | Charge des `Personne` depuis la base (une personne, ou des milliers en lots).                 |
 | `donnees/instantane.py`            | Instantanés Parquet : exporter toute la base une fois (`instantane_depuis_base`), puis relire les `Personne` sans base. |
+| `donnees/export_parquet.py`        | Exporte les tables brutes d'une base en Parquet (une table par fichier), sans les tables d'utilisateurs. |
+| `donnees/mariadb_local.py`         | Serveur MariaDB temporaire et privé (version portable téléchargée au besoin) pour importer un dump. |
 | **`pipeline/`**                    | **Les tâches de ce dépôt** (points d'entrée).                                                 |
 | `pipeline/apparier_personnes.py`   | Trouve les doublons et enregistre les paires dans `person_comparisons`.                       |
 | `pipeline/noms_partages.py`        | Exporte un résumé des noms partagés (`temp/partages_resume.csv`).                             |
 | `pipeline/comparer_paire.py`       | Charge et compare une paire précise (exemple / débogage).                                     |
 | `pipeline/statistiques.py`         | Statistiques générales (durée de vie, âges, etc.). Lecture seule.                             |
 | `pipeline/trouver_erreurs.py`      | Repère les erreurs de saisie (dates impossibles, etc.). Lecture seule.                        |
+| `pipeline/exporter_sql.py`         | Convertit un dump `.sql` en fichiers Parquet (`genealogie-export-sql`).                       |
 | `tests/`                           | Tests `pytest` (aucune base de données nécessaire).                                           |
 | `documents/`                       | Notes et questions de travail.                                                                |
 | `rapports/`                        | Sorties générées par les scripts.                                                             |
@@ -167,6 +170,32 @@ uv run pytest
 `apparier_personnes.py` crée la table `person_comparisons` si besoin, télécharge
 en lot toutes les personnes qui partagent un nom, les compare deux à deux, et
 enregistre chaque paire ayant au moins un critère concordant.
+
+### Convertir un dump `.sql` en Parquet
+
+Pour travailler sans base de données : on convertit une fois le dump, puis on lit
+les fichiers avec pandas ou DuckDB.
+
+```bash
+uv run genealogie-export-sql chemin/dump.sql chemin/parquet/
+```
+
+- MariaDB n'a pas besoin d'être installé : s'il n'est pas dans le PATH, la version
+  portable officielle (Linux x86_64 ou Windows x64, ~360 Mo, vérifiée par SHA-256)
+  est téléchargée une fois dans `.mariadb/` à côté du dump (`--cache` pour changer).
+  Sur macOS : `brew install mariadb`, ou `--mariadb <dossier>`.
+- Un serveur temporaire (local seulement, mot de passe aléatoire) importe le dump,
+  puis il est arrêté et sa base supprimée (`--garder-base` pour la garder).
+- Sortie : un `<table>.parquet` par table et un `manifeste.json` (source et sa
+  somme SHA-256, lignes et colonnes par table, version du paquet).
+- Les tables d'utilisateurs, de sessions, de journaux et de configuration de
+  WebTrees ne sont jamais exportées par défaut (`TABLES_EXCLUES`). `--tables` et
+  `--exclure` pour choisir autrement, `--ecraser` pour remplacer un export.
+
+```python
+import pandas as pd
+individus = pd.read_parquet("chemin/parquet/wt_individuals.parquet")
+```
 
 ## Les Prochaines Étapes
 ### Où on est en ce moment
