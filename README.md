@@ -32,18 +32,14 @@ voir `src/genealogie_acadienne/donnees/db.py`).
 git clone <url-du-dépôt>
 cd généalogie-acadienne
 
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
-pip install -e ".[test]"     # installe le paquet `genealogie_acadienne` en mode éditable
+uv sync                      # crée .venv (Python 3.13) et installe le paquet en mode éditable + pytest
+uv run pytest
 # (optionnel) l'environnement de travail complet, avec Jupyter, etc. :
-# pip install -r requirements.txt
+# uv pip install -r requirements.txt
 ```
 
-Python 3.13 ou plus récent est requis.
+Python 3.13 ou plus récent est requis (épinglé dans `.python-version`). Sans
+[uv](https://docs.astral.sh/uv/) : `pip install -e . --group dev` (pip ≥ 25.1).
 
 ### Depuis un autre projet
 
@@ -51,10 +47,10 @@ Le dépôt s'installe comme un paquet Python (`genealogie_acadienne`) :
 
 ```bash
 # copie locale, en mode éditable
-pip install -e ../genealogie-acadienne
+uv add --editable ../genealogie-acadienne
 
 # depuis git, épinglé sur un commit précis (recommandé pour la reproductibilité)
-pip install "genealogie-acadienne @ git+https://github.com/<compte>/genealogie-acadienne.git@<hash_du_commit>"
+uv add "genealogie-acadienne @ git+https://github.com/<compte>/genealogie-acadienne.git@<hash_du_commit>"
 ```
 
 ```python
@@ -143,8 +139,9 @@ vont dans un seul sens : `commun` ← `donnees` ← `pipeline`.
 
 ## Exécution
 
-Avec le `.venv` activé, le paquet installé et le `.env` configuré, depuis la
-racine du dépôt (les fichiers de sortie sont écrits dans le dossier courant) :
+Après `uv sync`, avec le `.env` configuré, depuis la racine du dépôt (les
+fichiers de sortie sont écrits dans le dossier courant). Préfixer chaque commande
+par `uv run` (ou activer `.venv`) :
 
 ```bash
 # Trouver les doublons -> écrit dans la table `person_comparisons`
@@ -164,7 +161,7 @@ python -m genealogie_acadienne.pipeline.noms_partages    # -> temp/partages_resu
 python -m genealogie_acadienne.pipeline.comparer_paire   # compare une paire d'exemple
 
 # Tests (aucune base nécessaire)
-pytest
+uv run pytest
 ```
 
 `apparier_personnes.py` crée la table `person_comparisons` si besoin, télécharge
